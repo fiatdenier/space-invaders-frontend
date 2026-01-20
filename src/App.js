@@ -37,7 +37,6 @@ const SpaceInvadersTournament = () => {
   startGame();
 };
   
-  
   const gameObjectsRef = useRef({
     player: { x: 0, y: 0, width: 80, height: 50, speed: 8, exploding: false, explosionFrame: 0 },
     invaders: [],
@@ -49,13 +48,9 @@ const SpaceInvadersTournament = () => {
     lastEnemyShot: 0,
     animationFrame: 0,
     keys: {},
-	mobileInput: { left: false, right: false, shoot: false },
-	bonusAlien: null,  // ADD THIS for bonus alien
-    lastBonusSpawn: 0
+	mobileInput: { left: false, right: false, shoot: false }
+	
   });
-  const soundsRef = useRef({});  // ADD THIS LINE
-  const marchIntervalRef = useRef(null);  // ADD THIS LINE
-  const marchBeatRef = useRef(0);  // ADD THIS LINE
 
   useEffect(() => {
     fetchLeaderboard();
@@ -78,65 +73,34 @@ const SpaceInvadersTournament = () => {
     return () => clearInterval(interval);
   }, []);
 
-	useEffect(() => {
-	  if (gameState === 'playing') {
-		const canvas = canvasRef.current;
-		if (!canvas) return;
-		
-		const ctx = canvas.getContext('2d');
-		const updateCanvasSize = () => {
-		  const container = canvas.parentElement;
-		  const ratio = 16 / 9;
-		  let width = container.clientWidth - 40;
-		  let height = container.clientHeight - 40;
-		  
-		  if (width / height > ratio) {
-			width = height * ratio;
-		  } else {
-			height = width / ratio;
-		  }
-		  
-		  canvas.width = Math.min(width, 1400);
-		  canvas.height = Math.min(height, 900);
-		};
-		
-		updateCanvasSize();
-		window.addEventListener('resize', updateCanvasSize);
-		
-		if (gameObjectsRef.current.invaders.length === 0) {
-		  initGame();
-		  setGameData(prev => ({ ...prev, startTime: Date.now() }));
-		}
+  useEffect(() => {
+    if (gameState === 'playing') {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1400;
+      canvas.height = 900;
+      
+      if (gameObjectsRef.current.invaders.length === 0) {
+        initGame();
+        setGameData(prev => ({ ...prev, startTime: Date.now() }));
+      }
 
-		const gameLoop = () => {
-		  update();
-		  render(ctx);
-		  gameLoopRef.current = requestAnimationFrame(gameLoop);
-		};
+      const gameLoop = () => {
+        update();
+        render(ctx);
+        gameLoopRef.current = requestAnimationFrame(gameLoop);
+      };
 
-		// START BACKGROUND MARCH MUSIC
-		const getMarchSpeed = () => {
-		  const alive = gameObjectsRef.current.invaders.filter(i => i.alive).length;
-		  return Math.max(200, 800 - (55 - alive) * 15);
-		};
-		
-		const startMarch = () => {
-		  playMarchBeat();
-		  marchIntervalRef.current = setTimeout(() => {
-			startMarch();
-		  }, getMarchSpeed());
-		};
-		
-		startMarch();
-		gameLoopRef.current = requestAnimationFrame(gameLoop);
-		
-		return () => {
-		  window.removeEventListener('resize', updateCanvasSize);
-		  if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
-		  if (marchIntervalRef.current) clearTimeout(marchIntervalRef.current);
-		};
-	  }
-	}, [gameState, lives]);
+      gameLoopRef.current = requestAnimationFrame(gameLoop);
+      return () => {
+        if (gameLoopRef.current) {
+          cancelAnimationFrame(gameLoopRef.current);
+        }
+      };
+    }
+  }, [gameState, lives]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -197,33 +161,49 @@ const SpaceInvadersTournament = () => {
   };
 
   const playSound = (type) => {
-    const soundMap = {
-      'shoot': 'playerShoot',
-      'alienShoot': 'alienShoot',
-      'hit': 'alienHit',
-      'explode': 'playerExplode',
-      'bonus': 'bonusAlien'
-    };
-  
-    const soundKey = soundMap[type];
-    if (soundsRef.current[soundKey]) {
-    // Clone the audio to allow overlapping sounds
-    const sound = soundsRef.current[soundKey].cloneNode();
-    sound.volume = 0.3;
-    sound.play().catch(e => console.log('Audio play failed:', e));
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const ctx = audioContextRef.current;
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    switch(type) {
+      case 'shoot':
+        oscillator.frequency.value = 1000;
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.1);
+        break;
+      case 'hit':
+        oscillator.frequency.value = 1400;
+        gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.15);
+        break;
+      case 'explode':
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(300, ctx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.6);
+        gainNode.gain.setValueAtTime(0.6, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.6);
+        break;
+      case 'march':
+        oscillator.frequency.value = 120 + (55 - gameObjectsRef.current.invaders.filter(i => i.alive).length) * 2;
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.08);
+        break;
     }
   };
-  
-	const playMarchBeat = () => {
-	  if (soundsRef.current.marchBeat) {
-		const sound = soundsRef.current.marchBeat.cloneNode();
-		sound.volume = 0.2;
-		sound.play().catch(e => console.log('March beat failed:', e));
-	  }
-	  marchBeatRef.current++;
-	};
-  
-    
 
   const initGame = () => {
     const canvas = canvasRef.current;
@@ -320,34 +300,6 @@ const SpaceInvadersTournament = () => {
         star.x = Math.random() * canvas.width;
       }
     });
-	
-  // ADD BONUS ALIEN LOGIC HERE
-    const now = Date.now();
-  // Spawn bonus alien randomly (every 15-30 seconds)
-    if (!game.bonusAlien && now - game.lastBonusSpawn > (15000 + Math.random() * 15000)) {
-      game.bonusAlien = {
-        x: -100,
-        y: 40,
-        width: 60,
-        height: 30,
-        speed: 2,
-        points: Math.floor(Math.random() * 3) * 50 + 50 // 50, 100, or 150 points
-      };
-      game.lastBonusSpawn = now;
-      playSound('bonus');
-    }
-  
-  // Update bonus alien position
-    if (game.bonusAlien) {
-      game.bonusAlien.x += game.bonusAlien.speed;
-    // Remove if off screen
-      if (game.bonusAlien.x > canvas.width + 100) {
-        game.bonusAlien = null;
-      }
-    }
-  
-  
-  
     
     if (game.player.exploding) {
       game.player.explosionFrame++;
@@ -392,7 +344,7 @@ const SpaceInvadersTournament = () => {
       playSound('march');
     }
 
-    // const now = Date.now();
+    const now = Date.now();
     if (now - game.lastEnemyShot > Math.max(350, 1000 - level * 80)) {
       if (aliveInvaders.length > 0) {
         const shooter = aliveInvaders[Math.floor(Math.random() * aliveInvaders.length)];
@@ -405,7 +357,6 @@ const SpaceInvadersTournament = () => {
           fromPlayer: false
         });
         game.lastEnemyShot = now;
-		playSound('alienShoot');
       }
     }
 
@@ -424,21 +375,6 @@ const SpaceInvadersTournament = () => {
         }
       });
 
-// Check if player shot hits bonus alien
-      game.bullets.forEach((bullet, bIndex) => {
-        if (game.bonusAlien && bullet.fromPlayer) {
-          if (bullet.x < game.bonusAlien.x + game.bonusAlien.width &&
-              bullet.x + bullet.width > game.bonusAlien.x &&
-              bullet.y < game.bonusAlien.y + game.bonusAlien.height &&
-              bullet.y + bullet.height > game.bonusAlien.y) {
-            setScore(s => s + game.bonusAlien.points);
-            game.bonusAlien = null;
-            game.bullets.splice(bIndex, 1);
-            playSound('hit');
-          }
-        }
-      });
-	  
       game.barriers.forEach((barrier) => {
         if (barrier.alive &&
             bullet.x < barrier.x + barrier.width &&
@@ -567,11 +503,6 @@ const SpaceInvadersTournament = () => {
     const game = gameObjectsRef.current;
     const canvas = canvasRef.current;
     
-	ctx.imageSmoothingEnabled = false;
-	ctx.webkitImageSmoothingEnabled = false;
-	ctx.mozImageSmoothingEnabled = false;
-	ctx.msImageSmoothingEnabled = false;
-  
     // Deep space background
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -602,24 +533,9 @@ const SpaceInvadersTournament = () => {
     game.barriers.forEach(barrier => {
       if (barrier.alive) {
         ctx.fillRect(barrier.x, barrier.y, barrier.width, barrier.height);
-      } 
+      }
     });
     //ctx.shadowBlur = 0;
-	
-	  if (game.bonusAlien) {
-		ctx.fillStyle = '#ff0000';
-		ctx.fillRect(game.bonusAlien.x + 10, game.bonusAlien.y, 40, 8);
-		ctx.fillRect(game.bonusAlien.x + 5, game.bonusAlien.y + 8, 50, 8);
-  
-  // Base/saucer
-		ctx.fillRect(game.bonusAlien.x, game.bonusAlien.y + 16, 60, 4);
-  
-  // Windows
-		ctx.fillStyle = '#ffffff';
-		ctx.fillRect(game.bonusAlien.x + 15, game.bonusAlien.y + 8, 8, 6);
-		ctx.fillRect(game.bonusAlien.x + 27, game.bonusAlien.y + 8, 8, 6);
-		ctx.fillRect(game.bonusAlien.x + 39, game.bonusAlien.y + 8, 8, 6);
-	  }	
 
     // Draw bullets with glow
     game.bullets.forEach(bullet => {
@@ -820,30 +736,12 @@ const SpaceInvadersTournament = () => {
     }
   };
   
-	  // Preload all sound files
-	 useEffect(() => {
-	   soundsRef.current = {
-		 playerShoot: new Audio('/sounds/player-shoot.wav'),
-		 alienShoot: new Audio('/sounds/alien-shoot.wav'),
-		 playerExplode: new Audio('/sounds/player-explode.wav'),
-		 alienHit: new Audio('/sounds/alien-hit.wav'),
-		 marchBeat: new Audio('/sounds/march-beat.wav'),
-		 bonusAlien: new Audio('/sounds/bonus-alien.wav')
-	   };
-	  
-	  // Preload all sounds
-	  Object.values(soundsRef.current).forEach(audio => {
-		audio.load();
-		audio.volume = 0.3; // Set default volume
-	  });
-	}, []);
-  
-	const handleMobileControl = (control, active) => {
-	  gameObjectsRef.current.mobileInput[control] = active;
-	  if (control === 'shoot' && active && gameState === 'playing') {
-		shoot();
-	  }
-	};
+  const handleMobileControl = (control, active) => {
+  gameObjectsRef.current.mobileInput[control] = active;
+  if (control === 'shoot' && active && gameState === 'playing') {
+    shoot();
+    }
+  };
 
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white overflow-hidden font-['Press_Start_2P']">
