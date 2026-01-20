@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Zap, Trophy, Coins, Maximize2, Copy, Check } from 'lucide-react';
+import { Zap, Trophy, Coins, Maximize2, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import AdminPanel from './Admin'; 
 
 const API_BASE_URL = 'https://invaders-api.fiatdenier.com/api';
 
 const SpaceInvadersTournament = () => {
+	
   const [gameState, setGameState] = useState('intro');
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
@@ -16,6 +18,9 @@ const SpaceInvadersTournament = () => {
   const [copied, setCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [gameData, setGameData] = useState({ startTime: null, shotsFired: 0, hits: 0 });
+  const [isMobile, setIsMobile] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);  // ADD HERE
+  const [testMode, setTestMode] = useState(false);
   
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
@@ -23,6 +28,14 @@ const SpaceInvadersTournament = () => {
   const paymentCheckRef = useRef(null);
   const audioContextRef = useRef(null);
   const starsRef = useRef([]);
+  
+  const startTestGame = (testToken) => {
+  setSessionToken(testToken);
+  setPlayerName('Test Player');
+  setTestMode(true);
+  setShowAdmin(false);
+  startGame();
+};
   
   const gameObjectsRef = useRef({
     player: { x: 0, y: 0, width: 80, height: 50, speed: 8, exploding: false, explosionFrame: 0 },
@@ -34,7 +47,9 @@ const SpaceInvadersTournament = () => {
     invaderSpeed: 1,
     lastEnemyShot: 0,
     animationFrame: 0,
-    keys: {}
+    keys: {},
+	mobileInput: { left: false, right: false, shoot: false }
+	
   });
 
   useEffect(() => {
@@ -116,6 +131,24 @@ const SpaceInvadersTournament = () => {
       endGame();
     }
   }, [lives]);
+  
+    useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+	useEffect(() => {
+	  const handleKeyPress = (e) => {
+		if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+		  setShowAdmin(!showAdmin);
+		}
+	  };
+	  window.addEventListener('keydown', handleKeyPress);
+	  return () => window.removeEventListener('keydown', handleKeyPress);
+	}, [showAdmin]);
+
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -278,11 +311,11 @@ const SpaceInvadersTournament = () => {
       return;
     }
     
-    if (game.keys['ArrowLeft'] && game.player.x > 0) {
-      game.player.x -= game.player.speed;
+    if (game.keys['ArrowLeft'] || game.mobileInput.left) {
+      if (game.player.x > 0) game.player.x -= game.player.speed;
     }
-    if (game.keys['ArrowRight'] && game.player.x < canvas.width - game.player.width) {
-      game.player.x += game.player.speed;
+    if (game.keys['ArrowRight'] || game.mobileInput.right) {
+      if (game.player.x < canvas.width - game.player.width) game.player.x += game.player.speed;
     }
 
     game.bullets = game.bullets.filter(bullet => {
@@ -451,8 +484,8 @@ const SpaceInvadersTournament = () => {
     const glowColors = ['rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,0,255,0.5)'];
     
     // Draw glow effect
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = glowColors[alienType];
+    //ctx.shadowBlur = 15;
+    //ctx.shadowColor = glowColors[alienType];
     
     ctx.fillStyle = colors[alienType];
     sprite.forEach((row, rowIndex) => {
@@ -463,7 +496,7 @@ const SpaceInvadersTournament = () => {
       }
     });
     
-    ctx.shadowBlur = 0;
+    //ctx.shadowBlur = 0;
   };
 
   const render = (ctx) => {
@@ -471,13 +504,9 @@ const SpaceInvadersTournament = () => {
     const canvas = canvasRef.current;
     
     // Deep space background
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, '#000000');
-    gradient.addColorStop(0.5, '#0a0a1a');
-    gradient.addColorStop(1, '#000000');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
     // Animated stars with twinkle
     starsRef.current.forEach(star => {
       ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
@@ -498,30 +527,30 @@ const SpaceInvadersTournament = () => {
     });
 
     // Draw barriers with glow
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#00ff00';
+    //ctx.shadowBlur = 10;
+    //ctx.shadowColor = '#00ff00';
     ctx.fillStyle = '#00ff00';
     game.barriers.forEach(barrier => {
       if (barrier.alive) {
         ctx.fillRect(barrier.x, barrier.y, barrier.width, barrier.height);
       }
     });
-    ctx.shadowBlur = 0;
+    //ctx.shadowBlur = 0;
 
     // Draw bullets with glow
     game.bullets.forEach(bullet => {
       if (bullet.fromPlayer) {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ffffff';
+        //ctx.shadowBlur = 15;
+        //ctx.shadowColor = '#ffffff';
         ctx.fillStyle = '#ffffff';
       } else {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ff0000';
+        //ctx.shadowBlur = 15;
+        //ctx.shadowColor = '#ff0000';
         ctx.fillStyle = '#ff0000';
       }
       ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
     });
-    ctx.shadowBlur = 0;
+    //ctx.shadowBlur = 0;
 
     // Draw player or explosion
     if (game.player.exploding) {
@@ -531,19 +560,19 @@ const SpaceInvadersTournament = () => {
         const dist = exp * 3;
         const colors = ['#ffff00', '#ff8800', '#ff0000'];
         ctx.fillStyle = colors[exp % 3];
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = ctx.fillStyle;
+        //ctx.shadowBlur = 20;
+        //ctx.shadowColor = ctx.fillStyle;
         ctx.fillRect(
           game.player.x + 40 + Math.cos(angle) * dist,
           game.player.y + 25 + Math.sin(angle) * dist,
           12, 12
         );
       }
-      ctx.shadowBlur = 0;
+      //ctx.shadowBlur = 0;
     } else {
       // Draw detailed ship with glow
-      ctx.shadowBlur = 20;
-      ctx.shadowColor = '#00ff00';
+      //ctx.shadowBlur = 20;
+      //ctx.shadowColor = '#00ff00';
       ctx.fillStyle = '#00ff00';
       
       // Main body
@@ -558,18 +587,18 @@ const SpaceInvadersTournament = () => {
       ctx.fillRect(game.player.x + 65, game.player.y + 35, 15, 15);
       // Cannon
       ctx.fillRect(game.player.x + 37, game.player.y, 6, 30);
-      ctx.shadowBlur = 0;
+      //ctx.shadowBlur = 0;
     }
 
     // UI with retro glow
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#00ff00';
+    //ctx.shadowBlur = 15;
+    //ctx.shadowColor = '#00ff00';
     ctx.fillStyle = '#00ff00';
     ctx.font = 'bold 36px "Press Start 2P", monospace';
     ctx.fillText(`SCORE ${score}`, 30, 50);
     
-    ctx.shadowColor = '#ffff00';
-    ctx.fillStyle = '#ffff00';
+    //ctx.shadowColor = '#ffff00';
+    //ctx.fillStyle = '#ffff00';
     ctx.fillText(`LEVEL ${level}`, canvas.width / 2 - 120, 50);
     
     // Lives with glow
@@ -578,7 +607,7 @@ const SpaceInvadersTournament = () => {
     for (let i = 0; i < lives; i++) {
       ctx.fillRect(canvas.width - 250 + i * 60, 20, 50, 30);
     }
-    ctx.shadowBlur = 0;
+    //ctx.shadowBlur = 0;
   };
 
   const fetchLeaderboard = async () => {
@@ -660,6 +689,16 @@ const SpaceInvadersTournament = () => {
     gameObjectsRef.current.barriers = [];
     setGameState('playing');
   };
+  
+  useEffect(() => {
+	  const handleKeyPress = (e) => {
+		if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+		  setShowAdmin(!showAdmin);
+		}
+	  };
+	  window.addEventListener('keydown', handleKeyPress);
+	  return () => window.removeEventListener('keydown', handleKeyPress);
+	}, [showAdmin]);
 
   const submitScore = async () => {
     try {
@@ -697,14 +736,35 @@ const SpaceInvadersTournament = () => {
     }
   };
   
+  const handleMobileControl = (control, active) => {
+  gameObjectsRef.current.mobileInput[control] = active;
+  if (control === 'shoot' && active && gameState === 'playing') {
+    shoot();
+    }
+  };
+
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white overflow-hidden font-['Press_Start_2P']">
-      <button
+      {/* Admin Panel Toggle - Add this */}
+    {showAdmin ? (
+      <AdminPanel onStartTestGame={startTestGame} />
+    ) : (
+      <>
+        {/* Your existing game UI here */}
+	  <button
         onClick={toggleFullscreen}
         className="fixed top-4 right-4 z-50 bg-purple-600 hover:bg-purple-700 p-3 rounded-lg shadow-lg shadow-purple-500/50"
       >
         <Maximize2 size={24} />
       </button>
+	  
+	  <button
+          onClick={() => setShowAdmin(true)}
+          className="fixed bottom-4 left-4 z-50 bg-gray-800 hover:bg-gray-700 p-2 rounded text-xs"
+          title="Admin Panel (Ctrl+Shift+A)"
+        >
+          ADMIN
+        </button>
 
       {gameState === 'intro' && (
         <div className="min-h-screen flex flex-col items-center justify-center bg-black p-8 relative overflow-hidden">
@@ -927,14 +987,43 @@ const SpaceInvadersTournament = () => {
       )}
 
       {gameState === 'playing' && (
-        <div className="flex items-center justify-center min-h-screen bg-black p-4">
-          <canvas
-            ref={canvasRef}
-            className="border-4 border-purple-500 rounded-lg shadow-2xl shadow-purple-500/50"
-            style={{maxWidth: '100%', maxHeight: '95vh'}}
-          />
-        </div>
-      )}
+		  <div className="flex flex-col items-center justify-center min-h-screen bg-black p-2">
+			<canvas
+			  ref={canvasRef}
+			  className="border-4 border-green-500 rounded"
+			  style={{maxWidth: '100%', maxHeight: '80vh'}}
+			/>
+			
+			{/* ADD THIS MOBILE CONTROLS SECTION */}
+			{isMobile && (
+			  <div className="fixed bottom-4 left-0 right-0 flex justify-between px-4 z-50">
+				<div className="flex gap-2">
+				  <button
+					onTouchStart={() => handleMobileControl('left', true)}
+					onTouchEnd={() => handleMobileControl('left', false)}
+					className="bg-green-600 p-6 rounded-full active:bg-green-700"
+				  >
+					<ChevronLeft size={32} />
+				  </button>
+				  <button
+					onTouchStart={() => handleMobileControl('right', true)}
+					onTouchEnd={() => handleMobileControl('right', false)}
+					className="bg-green-600 p-6 rounded-full active:bg-green-700"
+				  >
+					<ChevronRight size={32} />
+				  </button>
+				</div>
+				<button
+				  onTouchStart={() => handleMobileControl('shoot', true)}
+				  onTouchEnd={() => handleMobileControl('shoot', false)}
+				  className="bg-red-600 p-6 rounded-full active:bg-red-700 text-xl font-bold"
+				>
+				  FIRE
+				</button>
+			  </div>
+			)}
+		  </div>
+		)}
 
       {gameState === 'gameover' && (
         <div className="min-h-screen flex items-center justify-center bg-black">
@@ -1014,7 +1103,9 @@ const SpaceInvadersTournament = () => {
             )}
           </div>
         </div>
-      )}
+      )}		
+	  </>
+     )}
     </div>
   );
 };

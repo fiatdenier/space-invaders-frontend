@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Zap, Trophy, Coins, Maximize2, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
-import AdminPanel from './Admin'; 
+import AdminPanel from './Admin';
 
 const API_BASE_URL = 'https://invaders-api.fiatdenier.com/api';
 
 const SpaceInvadersTournament = () => {
-	
+
   const [gameState, setGameState] = useState('intro');
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
@@ -21,22 +21,22 @@ const SpaceInvadersTournament = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);  // ADD HERE
   const [testMode, setTestMode] = useState(false);
-  
+
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const gameLoopRef = useRef(null);
   const paymentCheckRef = useRef(null);
   const audioContextRef = useRef(null);
   const starsRef = useRef([]);
-  
+
   const startTestGame = (testToken) => {
-  setSessionToken(testToken);
-  setPlayerName('Test Player');
-  setTestMode(true);
-  setShowAdmin(false);
-  startGame();
-};
-  
+    setSessionToken(testToken);
+    setPlayerName('Test Player');
+    setTestMode(true);
+    setShowAdmin(false);
+    startGame();
+  };
+
   const gameObjectsRef = useRef({
     player: { x: 0, y: 0, width: 80, height: 50, speed: 8, exploding: false, explosionFrame: 0 },
     invaders: [],
@@ -48,8 +48,8 @@ const SpaceInvadersTournament = () => {
     lastEnemyShot: 0,
     animationFrame: 0,
     keys: {},
-	mobileInput: { left: false, right: false, shoot: false }
-	
+    mobileInput: { left: false, right: false, shoot: false }
+
   });
 
   useEffect(() => {
@@ -59,7 +59,7 @@ const SpaceInvadersTournament = () => {
       fetchLeaderboard();
       fetchPotAmount();
     }, 10000);
-    
+
     for (let i = 0; i < 200; i++) {
       starsRef.current.push({
         x: Math.random() * 1400,
@@ -69,7 +69,7 @@ const SpaceInvadersTournament = () => {
         brightness: Math.random()
       });
     }
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -77,11 +77,11 @@ const SpaceInvadersTournament = () => {
     if (gameState === 'playing') {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      
+
       const ctx = canvas.getContext('2d');
       canvas.width = 1400;
       canvas.height = 900;
-      
+
       if (gameObjectsRef.current.invaders.length === 0) {
         initGame();
         setGameData(prev => ({ ...prev, startTime: Date.now() }));
@@ -131,23 +131,23 @@ const SpaceInvadersTournament = () => {
       endGame();
     }
   }, [lives]);
-  
-    useEffect(() => {
+
+  useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-    }, []);
+  }, []);
 
-	useEffect(() => {
-	  const handleKeyPress = (e) => {
-		if (e.ctrlKey && e.shiftKey && e.key === 'A') {
-		  setShowAdmin(!showAdmin);
-		}
-	  };
-	  window.addEventListener('keydown', handleKeyPress);
-	  return () => window.removeEventListener('keydown', handleKeyPress);
-	}, [showAdmin]);
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+        setShowAdmin(!showAdmin);
+      }
+    };
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showAdmin]);
 
 
   const toggleFullscreen = () => {
@@ -165,42 +165,135 @@ const SpaceInvadersTournament = () => {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    
-    switch(type) {
+
+    switch (type) {
       case 'shoot':
-        oscillator.frequency.value = 1000;
-        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.1);
+        // Player laser - quick ascending tone
+        const shootOsc = ctx.createOscillator();
+        const shootGain = ctx.createGain();
+        shootOsc.connect(shootGain);
+        shootGain.connect(ctx.destination);
+
+        shootOsc.frequency.setValueAtTime(1000, ctx.currentTime);
+        shootOsc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
+        shootGain.gain.setValueAtTime(0.3, ctx.currentTime);
+        shootGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+
+        shootOsc.start(ctx.currentTime);
+        shootOsc.stop(ctx.currentTime + 0.1);
         break;
+
       case 'hit':
-        oscillator.frequency.value = 1400;
-        gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.15);
+        // Alien explosion - harsh burst
+        const hitOsc = ctx.createOscillator();
+        const hitGain = ctx.createGain();
+
+        hitOsc.type = 'sawtooth';
+        hitOsc.connect(hitGain);
+        hitGain.connect(ctx.destination);
+
+        hitOsc.frequency.setValueAtTime(400, ctx.currentTime);
+        hitOsc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.15);
+        hitGain.gain.setValueAtTime(0.4, ctx.currentTime);
+        hitGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+
+        hitOsc.start(ctx.currentTime);
+        hitOsc.stop(ctx.currentTime + 0.15);
         break;
+
       case 'explode':
-        oscillator.type = 'sawtooth';
-        oscillator.frequency.setValueAtTime(300, ctx.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.6);
-        gainNode.gain.setValueAtTime(0.6, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.6);
+        // Player ship explosion - longer, deeper
+        const explodeOsc1 = ctx.createOscillator();
+        const explodeOsc2 = ctx.createOscillator();
+        const explodeGain = ctx.createGain();
+
+        explodeOsc1.type = 'sawtooth';
+        explodeOsc2.type = 'square';
+
+        explodeOsc1.connect(explodeGain);
+        explodeOsc2.connect(explodeGain);
+        explodeGain.connect(ctx.destination);
+
+        explodeOsc1.frequency.setValueAtTime(500, ctx.currentTime);
+        explodeOsc1.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.8);
+        explodeOsc2.frequency.setValueAtTime(250, ctx.currentTime);
+        explodeOsc2.frequency.exponentialRampToValueAtTime(15, ctx.currentTime + 0.8);
+
+        explodeGain.gain.setValueAtTime(0.5, ctx.currentTime);
+        explodeGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+
+        explodeOsc1.start(ctx.currentTime);
+        explodeOsc2.start(ctx.currentTime);
+        explodeOsc1.stop(ctx.currentTime + 0.8);
+        explodeOsc2.stop(ctx.currentTime + 0.8);
         break;
+
       case 'march':
-        oscillator.frequency.value = 120 + (55 - gameObjectsRef.current.invaders.filter(i => i.alive).length) * 2;
-        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.08);
+        // Classic 4-beat march that speeds up
+        const aliveCount = gameObjectsRef.current.invaders.filter(i => i.alive).length;
+        const marchOsc = ctx.createOscillator();
+        const marchGain = ctx.createGain();
+
+        marchOsc.type = 'square';
+        marchOsc.connect(marchGain);
+        marchGain.connect(ctx.destination);
+
+        // Speed increases as aliens die
+        const baseFreq = 80 + (55 - aliveCount) * 4;
+        marchOsc.frequency.value = baseFreq;
+
+        marchGain.gain.setValueAtTime(0.15, ctx.currentTime);
+        marchGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+
+        marchOsc.start(ctx.currentTime);
+        marchOsc.stop(ctx.currentTime + 0.1);
+        break;
+
+      case 'bonus':
+        // UFO flying sound - continuous warble
+        const ufoOsc = ctx.createOscillator();
+        const ufoGain = ctx.createGain();
+        const ufoLFO = ctx.createOscillator();
+        const ufoLFOGain = ctx.createGain();
+
+        ufoOsc.type = 'square';
+        ufoLFO.type = 'sine';
+        ufoLFO.frequency.value = 6; // Warble speed
+
+        ufoLFOGain.gain.value = 50; // Warble depth
+        ufoLFO.connect(ufoLFOGain);
+        ufoLFOGain.connect(ufoOsc.frequency);
+
+        ufoOsc.frequency.value = 400;
+        ufoOsc.connect(ufoGain);
+        ufoGain.connect(ctx.destination);
+
+        ufoGain.gain.setValueAtTime(0.2, ctx.currentTime);
+        ufoGain.gain.setValueAtTime(0.2, ctx.currentTime + 0.3);
+        ufoGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+
+        ufoOsc.start(ctx.currentTime);
+        ufoLFO.start(ctx.currentTime);
+        ufoOsc.stop(ctx.currentTime + 0.4);
+        ufoLFO.stop(ctx.currentTime + 0.4);
+        break;
+
+      case 'alienShoot':
+        // Alien shot - descending tone (opposite of player)
+        const alienShootOsc = ctx.createOscillator();
+        const alienShootGain = ctx.createGain();
+
+        alienShootOsc.type = 'triangle';
+        alienShootOsc.connect(alienShootGain);
+        alienShootGain.connect(ctx.destination);
+
+        alienShootOsc.frequency.setValueAtTime(200, ctx.currentTime);
+        alienShootOsc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.12);
+        alienShootGain.gain.setValueAtTime(0.25, ctx.currentTime);
+        alienShootGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+
+        alienShootOsc.start(ctx.currentTime);
+        alienShootOsc.stop(ctx.currentTime + 0.12);
         break;
     }
   };
@@ -241,18 +334,18 @@ const SpaceInvadersTournament = () => {
     for (let i = 0; i < 4; i++) {
       const baseX = 200 + i * 320;
       const baseY = canvas.height - 220;
-      
+
       // Create dome/arch shape
       const domePattern = [
-        [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
-        [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
-        [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-        [1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1],
-        [1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1]
+        [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+        [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
       ];
-      
+
       domePattern.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
           if (cell) {
@@ -290,7 +383,7 @@ const SpaceInvadersTournament = () => {
     const game = gameObjectsRef.current;
     const canvas = canvasRef.current;
     game.animationFrame++;
-    
+
     // Animate stars
     starsRef.current.forEach(star => {
       star.y += star.speed;
@@ -300,7 +393,7 @@ const SpaceInvadersTournament = () => {
         star.x = Math.random() * canvas.width;
       }
     });
-    
+
     if (game.player.exploding) {
       game.player.explosionFrame++;
       if (game.player.explosionFrame > 40) {
@@ -310,7 +403,7 @@ const SpaceInvadersTournament = () => {
       }
       return;
     }
-    
+
     if (game.keys['ArrowLeft'] || game.mobileInput.left) {
       if (game.player.x > 0) game.player.x -= game.player.speed;
     }
@@ -324,14 +417,14 @@ const SpaceInvadersTournament = () => {
     });
 
     const aliveInvaders = game.invaders.filter(inv => inv.alive);
-    
+
     if (game.animationFrame % 30 === 0 && aliveInvaders.length > 0) {
       let hitEdge = false;
       aliveInvaders.forEach(inv => {
         inv.x += game.invaderDirection * game.invaderSpeed * 18;
         if (inv.x <= 30 || inv.x >= canvas.width - 100) hitEdge = true;
       });
-      
+
       if (hitEdge) {
         game.invaderDirection *= -1;
         aliveInvaders.forEach(inv => {
@@ -363,10 +456,10 @@ const SpaceInvadersTournament = () => {
     game.bullets.forEach((bullet, bIndex) => {
       game.invaders.forEach((invader) => {
         if (invader.alive && bullet.fromPlayer &&
-            bullet.x < invader.x + invader.width &&
-            bullet.x + bullet.width > invader.x &&
-            bullet.y < invader.y + invader.height &&
-            bullet.y + bullet.height > invader.y) {
+          bullet.x < invader.x + invader.width &&
+          bullet.x + bullet.width > invader.x &&
+          bullet.y < invader.y + invader.height &&
+          bullet.y + bullet.height > invader.y) {
           invader.alive = false;
           game.bullets.splice(bIndex, 1);
           setScore(s => s + invader.points);
@@ -377,10 +470,10 @@ const SpaceInvadersTournament = () => {
 
       game.barriers.forEach((barrier) => {
         if (barrier.alive &&
-            bullet.x < barrier.x + barrier.width &&
-            bullet.x + bullet.width > barrier.x &&
-            bullet.y < barrier.y + barrier.height &&
-            bullet.y + bullet.height > barrier.y) {
+          bullet.x < barrier.x + barrier.width &&
+          bullet.x + bullet.width > barrier.x &&
+          bullet.y < barrier.y + barrier.height &&
+          bullet.y + bullet.height > barrier.y) {
           barrier.alive = false;
           game.bullets.splice(bIndex, 1);
         }
@@ -388,9 +481,9 @@ const SpaceInvadersTournament = () => {
 
       if (!bullet.fromPlayer && !game.player.exploding) {
         if (bullet.x < game.player.x + game.player.width &&
-            bullet.x + bullet.width > game.player.x &&
-            bullet.y < game.player.y + game.player.height &&
-            bullet.y + bullet.height > game.player.y) {
+          bullet.x + bullet.width > game.player.x &&
+          bullet.y < game.player.y + game.player.height &&
+          bullet.y + bullet.height > game.player.y) {
           game.bullets.splice(bIndex, 1);
           game.player.exploding = true;
           game.player.explosionFrame = 0;
@@ -477,16 +570,16 @@ const SpaceInvadersTournament = () => {
         ]
       ]
     };
-    
+
     const alienType = type >= 3 ? 2 : type;
     const sprite = sprites[alienType][frame % 2];
     const colors = ['#ffff00', '#00ffff', '#ff00ff'];
     const glowColors = ['rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,0,255,0.5)'];
-    
+
     // Draw glow effect
     //ctx.shadowBlur = 15;
     //ctx.shadowColor = glowColors[alienType];
-    
+
     ctx.fillStyle = colors[alienType];
     sprite.forEach((row, rowIndex) => {
       for (let colIndex = 0; colIndex < row.length; colIndex++) {
@@ -495,18 +588,18 @@ const SpaceInvadersTournament = () => {
         }
       }
     });
-    
+
     //ctx.shadowBlur = 0;
   };
 
   const render = (ctx) => {
     const game = gameObjectsRef.current;
     const canvas = canvasRef.current;
-    
+
     // Deep space background
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     // Animated stars with twinkle
     starsRef.current.forEach(star => {
       ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
@@ -574,7 +667,7 @@ const SpaceInvadersTournament = () => {
       //ctx.shadowBlur = 20;
       //ctx.shadowColor = '#00ff00';
       ctx.fillStyle = '#00ff00';
-      
+
       // Main body
       ctx.fillRect(game.player.x + 10, game.player.y + 30, 60, 20);
       // Cockpit
@@ -596,11 +689,11 @@ const SpaceInvadersTournament = () => {
     ctx.fillStyle = '#00ff00';
     ctx.font = 'bold 36px "Press Start 2P", monospace';
     ctx.fillText(`SCORE ${score}`, 30, 50);
-    
+
     //ctx.shadowColor = '#ffff00';
     //ctx.fillStyle = '#ffff00';
     ctx.fillText(`LEVEL ${level}`, canvas.width / 2 - 120, 50);
-    
+
     // Lives with glow
     ctx.shadowColor = '#00ff00';
     ctx.fillStyle = '#00ff00';
@@ -638,7 +731,7 @@ const SpaceInvadersTournament = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerName: playerName || 'Anonymous' })
       });
-      
+
       const data = await response.json();
       setSessionToken(data.sessionToken);
       setInvoice(data.invoice);
@@ -655,7 +748,7 @@ const SpaceInvadersTournament = () => {
       try {
         const response = await fetch(`${API_BASE_URL}/payment/status/${paymentHash}`);
         const data = await response.json();
-        
+
         if (data.paid) {
           clearInterval(paymentCheckRef.current);
           startGame();
@@ -689,16 +782,16 @@ const SpaceInvadersTournament = () => {
     gameObjectsRef.current.barriers = [];
     setGameState('playing');
   };
-  
+
   useEffect(() => {
-	  const handleKeyPress = (e) => {
-		if (e.ctrlKey && e.shiftKey && e.key === 'A') {
-		  setShowAdmin(!showAdmin);
-		}
-	  };
-	  window.addEventListener('keydown', handleKeyPress);
-	  return () => window.removeEventListener('keydown', handleKeyPress);
-	}, [showAdmin]);
+    const handleKeyPress = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+        setShowAdmin(!showAdmin);
+      }
+    };
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showAdmin]);
 
   const submitScore = async () => {
     try {
@@ -717,7 +810,7 @@ const SpaceInvadersTournament = () => {
           }
         })
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         alert(`Score submitted! Your rank: #${data.rank}`);
@@ -735,377 +828,393 @@ const SpaceInvadersTournament = () => {
       alert('Failed to submit score. Please try again.');
     }
   };
-  
+
   const handleMobileControl = (control, active) => {
-  gameObjectsRef.current.mobileInput[control] = active;
-  if (control === 'shoot' && active && gameState === 'playing') {
-    shoot();
+    gameObjectsRef.current.mobileInput[control] = active;
+    if (control === 'shoot' && active && gameState === 'playing') {
+      shoot();
     }
   };
 
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white overflow-hidden font-['Press_Start_2P']">
       {/* Admin Panel Toggle - Add this */}
-    {showAdmin ? (
-      <AdminPanel onStartTestGame={startTestGame} />
-    ) : (
-      <>
-        {/* Your existing game UI here */}
-	  <button
-        onClick={toggleFullscreen}
-        className="fixed top-4 right-4 z-50 bg-purple-600 hover:bg-purple-700 p-3 rounded-lg shadow-lg shadow-purple-500/50"
-      >
-        <Maximize2 size={24} />
-      </button>
-	  
-	  <button
-          onClick={() => setShowAdmin(true)}
-          className="fixed bottom-4 left-4 z-50 bg-gray-800 hover:bg-gray-700 p-2 rounded text-xs"
-          title="Admin Panel (Ctrl+Shift+A)"
-        >
-          ADMIN
-        </button>
-
-      {gameState === 'intro' && (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-black p-8 relative overflow-hidden">
-          {/* Animated background stars */}
-          <div className="absolute inset-0 opacity-30">
-            {[...Array(50)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-1 h-1 bg-white rounded-full animate-pulse"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  animationDelay: `${Math.random() * 2}s`
-                }}
-              />
-            ))}
-          </div>
-
-          <h1 className="text-7xl md:text-9xl font-bold mb-8 relative z-10">
-            <span className="text-white glow" style={{textShadow: '0 0 20px #fff, 0 0 40px #fff, 0 0 60px #fff'}}>
-              SPACE
-            </span>
-            <br />
-            <span className="text-green-400 glow-green animate-glow" style={{textShadow: '0 0 20px #0f0, 0 0 40px #0f0, 0 0 80px #0f0'}}>
-              INVADERS
-            </span>
-          </h1>
-          
-          <div className="space-y-12 my-16 text-2xl font-['Press_Start_2P'] relative z-10">
-		  
-  {/* Squid Alien */}
-		  <div className="flex items-center gap-12">
-			<svg width="80" height="80" viewBox="0 0 16 16" className="shadow-lg shadow-yellow-400/50" style={{imageRendering: 'pixelated'}}>
-			  <rect x="4" y="2" width="8" height="2" fill="#ffff00"/>
-			  <rect x="2" y="4" width="12" height="2" fill="#ffff00"/>
-			  <rect x="0" y="6" width="16" height="2" fill="#ffff00"/>
-			  <rect x="0" y="8" width="2" height="2" fill="#ffff00"/>
-			  <rect x="4" y="8" width="2" height="2" fill="#ffff00"/>
-			  <rect x="10" y="8" width="2" height="2" fill="#ffff00"/>
-			  <rect x="14" y="8" width="2" height="2" fill="#ffff00"/>
-			  <rect x="0" y="10" width="16" height="2" fill="#ffff00"/>
-			  <rect x="2" y="12" width="2" height="2" fill="#ffff00"/>
-			  <rect x="6" y="12" width="2" height="2" fill="#ffff00"/>
-			  <rect x="8" y="12" width="2" height="2" fill="#ffff00"/>
-			  <rect x="12" y="12" width="2" height="2" fill="#ffff00"/>
-			  <rect x="2" y="14" width="2" height="2" fill="#ffff00"/>
-			  <rect x="12" y="14" width="2" height="2" fill="#ffff00"/>
-			  <filter id="glow-yellow">
-				<feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-				<feMerge>
-				  <feMergeNode in="coloredBlur"/>
-				  <feMergeNode in="SourceGraphic"/>
-				</feMerge>
-			  </filter>
-			  <rect x="0" y="0" width="16" height="16" fill="none" filter="url(#glow-yellow)"/>
-			</svg>
-			<span className="text-yellow-400 glow-yellow">= 10 PTS</span>
-		  </div>
-
-		  {/* Crab Alien */}
-		  <div className="flex items-center gap-12">
-			<svg width="80" height="80" viewBox="0 0 16 16" className="shadow-lg shadow-cyan-400/50" style={{imageRendering: 'pixelated'}}>
-			  <rect x="2" y="0" width="2" height="2" fill="#00ffff"/>
-			  <rect x="12" y="0" width="2" height="2" fill="#00ffff"/>
-			  <rect x="4" y="2" width="2" height="2" fill="#00ffff"/>
-			  <rect x="10" y="2" width="2" height="2" fill="#00ffff"/>
-			  <rect x="2" y="4" width="12" height="2" fill="#00ffff"/>
-			  <rect x="0" y="6" width="16" height="2" fill="#00ffff"/>
-			  <rect x="0" y="8" width="16" height="2" fill="#00ffff"/>
-			  <rect x="0" y="10" width="2" height="2" fill="#00ffff"/>
-			  <rect x="2" y="10" width="2" height="2" fill="#00ffff"/>
-			  <rect x="6" y="10" width="4" height="2" fill="#00ffff"/>
-			  <rect x="12" y="10" width="2" height="2" fill="#00ffff"/>
-			  <rect x="14" y="10" width="2" height="2" fill="#00ffff"/>
-			  <rect x="0" y="12" width="2" height="2" fill="#00ffff"/>
-			  <rect x="6" y="12" width="2" height="2" fill="#00ffff"/>
-			  <rect x="8" y="12" width="2" height="2" fill="#00ffff"/>
-			  <rect x="14" y="12" width="2" height="2" fill="#00ffff"/>
-			</svg>
-			<span className="text-cyan-400" style={{textShadow: '0 0 20px #0ff, 0 0 40px #0ff'}}>= 20 PTS</span>
-		  </div>
-
-		  {/* Octopus Alien */}
-		  <div className="flex items-center gap-12">
-			<svg width="80" height="80" viewBox="0 0 16 16" className="shadow-lg shadow-fuchsia-400/50" style={{imageRendering: 'pixelated'}}>
-			  <rect x="4" y="0" width="8" height="2" fill="#ff00ff"/>
-			  <rect x="2" y="2" width="12" height="2" fill="#ff00ff"/>
-			  <rect x="0" y="4" width="16" height="2" fill="#ff00ff"/>
-			  <rect x="0" y="6" width="4" height="2" fill="#ff00ff"/>
-			  <rect x="6" y="6" width="4" height="2" fill="#ff00ff"/>
-			  <rect x="12" y="6" width="4" height="2" fill="#ff00ff"/>
-			  <rect x="0" y="8" width="16" height="2" fill="#ff00ff"/>
-			  <rect x="2" y="10" width="2" height="2" fill="#ff00ff"/>
-			  <rect x="6" y="10" width="2" height="2" fill="#ff00ff"/>
-			  <rect x="8" y="10" width="2" height="2" fill="#ff00ff"/>
-			  <rect x="12" y="10" width="2" height="2" fill="#ff00ff"/>
-			  <rect x="0" y="12" width="2" height="2" fill="#ff00ff"/>
-			  <rect x="4" y="12" width="2" height="2" fill="#ff00ff"/>
-			  <rect x="10" y="12" width="2" height="2" fill="#ff00ff"/>
-			  <rect x="14" y="12" width="2" height="2" fill="#ff00ff"/>
-			</svg>
-			<span className="text-fuchsia-400" style={{textShadow: '0 0 20px #f0f, 0 0 40px #f0f'}}>= 30 PTS</span>
-		  </div>
-
-		  {/* UFO */}
-		  <div className="flex items-center gap-12">
-			<svg width="80" height="80" viewBox="0 0 16 16" className="shadow-lg shadow-red-500/50" style={{imageRendering: 'pixelated'}}>
-			  <rect x="6" y="0" width="4" height="2" fill="#ff0000"/>
-			  <rect x="4" y="2" width="8" height="2" fill="#ff0000"/>
-			  <rect x="2" y="4" width="12" height="2" fill="#ff0000"/>
-			  <rect x="0" y="6" width="16" height="2" fill="#ff0000"/>
-			  <rect x="0" y="8" width="2" height="2" fill="#ff0000"/>
-			  <rect x="4" y="8" width="2" height="2" fill="#ff0000"/>
-			  <rect x="10" y="8" width="2" height="2" fill="#ff0000"/>
-			  <rect x="14" y="8" width="2" height="2" fill="#ff0000"/>
-			  <rect x="4" y="4" width="2" height="2" fill="#ffffff"/>
-			  <rect x="10" y="4" width="2" height="2" fill="#ffffff"/>
-			</svg>
-			<span className="text-red-500" style={{textShadow: '0 0 20px #f00, 0 0 40px #f00'}}>= ??? PTS</span>
-		  </div>
-		</div>
-		  
-          
+      {showAdmin ? (
+        <AdminPanel onStartTestGame={startTestGame} />
+      ) : (
+        <>
+          {/* Your existing game UI here */}
           <button
-            onClick={() => setGameState('menu')}
-            className="text-3xl font-['Press_Start_2P'] text-white animate-pulse mt-12 border-4 border-white px-12 py-6 hover:bg-white hover:text-black transition-all relative z-10 shadow-lg shadow-white/50"
-            style={{textShadow: '0 0 10px #fff'}}
+            onClick={toggleFullscreen}
+            className="fixed top-4 right-4 z-50 bg-purple-600 hover:bg-purple-700 p-3 rounded-lg shadow-lg shadow-purple-500/50"
           >
-            PLAY SPACE INVADERS
+            <Maximize2 size={24} />
           </button>
-          
-          <div className="mt-20 flex items-center gap-6 relative z-10">
-            <Coins className="text-yellow-400" size={48} />
-            <span className="text-4xl font-['Press_Start_2P'] text-yellow-400 glow-yellow">
-              {potAmount.toLocaleString()} SATS
-            </span>
-          </div>
-          
-          <p className="mt-8 text-green-400 text-xl font-['Press_Start_2P'] animate-pulse">
-            PRESS ENTER OR CLICK BUTTON
-          </p>
-        </div>
-      )}
 
-      {gameState === 'menu' && (
-        <div className="min-h-screen flex items-center justify-center bg-black p-8">
-          <div className="max-w-5xl w-full mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-              <div className="bg-gray-900 rounded-lg p-10 border-4 border-purple-500 shadow-2xl shadow-purple-500/50">
-                <h2 className="text-5xl font-bold mb-8 text-green-400 font-['Press_Start_2P'] glow-green">
-                  READY?
-                </h2>
-                <p className="text-xl text-gray-400 mb-8 font-['Press_Start_2P']">
-                  PAY 1000 SATS
-                </p>
-                
-                <input
-                  type="text"
-                  placeholder="NAME"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full px-6 py-4 bg-black border-4 border-green-400 rounded mb-8 text-white text-xl font-['Press_Start_2P'] shadow-lg shadow-green-400/30"
-                />
-                
-                <button
-                  onClick={createPayment}
-                  className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-bold py-5 px-8 rounded-lg text-2xl flex items-center justify-center gap-4 font-['Press_Start_2P'] shadow-2xl shadow-yellow-500/50"
-                >
-                  <Zap size={36} />
-                  PAY & PLAY
-                </button>
+          <button
+            onClick={() => setShowAdmin(true)}
+            className="fixed bottom-4 left-4 z-50 bg-gray-800 hover:bg-gray-700 p-2 rounded text-xs"
+            title="Admin Panel (Ctrl+Shift+A)"
+          >
+            ADMIN
+          </button>
+
+          {gameState === 'intro' && (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-black p-4 md:p-8 relative overflow-hidden">
+              {/* Animated background stars */}
+              <div className="absolute inset-0 opacity-30">
+                {[...Array(50)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute w-1 h-1 bg-white rounded-full animate-pulse"
+                    style={{
+                      left: `${Math.random() * 100}%`,
+                      top: `${Math.random() * 100}%`,
+                      animationDelay: `${Math.random() * 2}s`
+                    }}
+                  />
+                ))}
               </div>
 
-              <div className="bg-gray-900 rounded-lg p-10 border-4 border-purple-500 shadow-2xl shadow-purple-500/50">
-                <div className="flex items-center gap-3 mb-8">
-                  <Trophy className="text-yellow-400" size={40} />
-                  <h2 className="text-4xl font-bold font-['Press_Start_2P']">TOP 5</h2>
+              <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-9xl font-bold mb-4 md:mb-8 relative z-10 text-center">
+                <span className="text-white glow" style={{ textShadow: '0 0 20px #fff, 0 0 40px #fff, 0 0 60px #fff' }}>
+                  SPACE
+                </span>
+                <br />
+                <span className="text-green-400 glow-green animate-glow" style={{ textShadow: '0 0 20px #0f0, 0 0 40px #0f0, 0 0 80px #0f0' }}>
+                  INVADERS
+                </span>
+              </h1>
+
+              <div className="space-y-4 md:space-y-8 my-8 md:my-16 text-sm sm:text-base md:text-xl lg:text-2xl font-['Press_Start_2P'] relative z-10 w-full max-w-2xl px-4">
+
+                {/* Squid Alien */}
+                <div className="flex items-center justify-center gap-4 md:gap-12">
+                  <svg width="40" height="40" viewBox="0 0 16 16" className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 shadow-lg shadow-yellow-400/50" style={{ imageRendering: 'pixelated' }}>
+                    <rect x="4" y="2" width="8" height="2" fill="#ffff00" />
+                    <rect x="2" y="4" width="12" height="2" fill="#ffff00" />
+                    <rect x="0" y="6" width="16" height="2" fill="#ffff00" />
+                    <rect x="0" y="8" width="2" height="2" fill="#ffff00" />
+                    <rect x="4" y="8" width="2" height="2" fill="#ffff00" />
+                    <rect x="10" y="8" width="2" height="2" fill="#ffff00" />
+                    <rect x="14" y="8" width="2" height="2" fill="#ffff00" />
+                    <rect x="0" y="10" width="16" height="2" fill="#ffff00" />
+                    <rect x="2" y="12" width="2" height="2" fill="#ffff00" />
+                    <rect x="6" y="12" width="2" height="2" fill="#ffff00" />
+                    <rect x="8" y="12" width="2" height="2" fill="#ffff00" />
+                    <rect x="12" y="12" width="2" height="2" fill="#ffff00" />
+                    <rect x="2" y="14" width="2" height="2" fill="#ffff00" />
+                    <rect x="12" y="14" width="2" height="2" fill="#ffff00" />
+                  </svg>
+                  <span className="text-yellow-400 glow-yellow">= 10 PTS</span>
                 </div>
-                
-                <div className="space-y-3">
-                  {leaderboard.slice(0, 5).length === 0 ? (
-                    <p className="text-gray-500 text-center py-12 font-['Press_Start_2P'] text-sm">
-                      NO SCORES YET
+
+                {/* Crab Alien */}
+                <div className="flex items-center justify-center gap-4 md:gap-12">
+                  <svg width="40" height="40" viewBox="0 0 16 16" className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 shadow-lg shadow-cyan-400/50" style={{ imageRendering: 'pixelated' }}>
+                    <rect x="2" y="0" width="2" height="2" fill="#00ffff" />
+                    <rect x="12" y="0" width="2" height="2" fill="#00ffff" />
+                    <rect x="4" y="2" width="2" height="2" fill="#00ffff" />
+                    <rect x="10" y="2" width="2" height="2" fill="#00ffff" />
+                    <rect x="2" y="4" width="12" height="2" fill="#00ffff" />
+                    <rect x="0" y="6" width="16" height="2" fill="#00ffff" />
+                    <rect x="0" y="8" width="16" height="2" fill="#00ffff" />
+                    <rect x="0" y="10" width="2" height="2" fill="#00ffff" />
+                    <rect x="2" y="10" width="2" height="2" fill="#00ffff" />
+                    <rect x="6" y="10" width="4" height="2" fill="#00ffff" />
+                    <rect x="12" y="10" width="2" height="2" fill="#00ffff" />
+                    <rect x="14" y="10" width="2" height="2" fill="#00ffff" />
+                    <rect x="0" y="12" width="2" height="2" fill="#00ffff" />
+                    <rect x="6" y="12" width="2" height="2" fill="#00ffff" />
+                    <rect x="8" y="12" width="2" height="2" fill="#00ffff" />
+                    <rect x="14" y="12" width="2" height="2" fill="#00ffff" />
+                  </svg>
+                  <span className="text-cyan-400" style={{ textShadow: '0 0 20px #0ff, 0 0 40px #0ff' }}>= 20 PTS</span>
+                </div>
+
+                {/* Octopus Alien */}
+                <div className="flex items-center justify-center gap-4 md:gap-12">
+                  <svg width="40" height="40" viewBox="0 0 16 16" className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 shadow-lg shadow-fuchsia-400/50" style={{ imageRendering: 'pixelated' }}>
+                    <rect x="4" y="0" width="8" height="2" fill="#ff00ff" />
+                    <rect x="2" y="2" width="12" height="2" fill="#ff00ff" />
+                    <rect x="0" y="4" width="16" height="2" fill="#ff00ff" />
+                    <rect x="0" y="6" width="4" height="2" fill="#ff00ff" />
+                    <rect x="6" y="6" width="4" height="2" fill="#ff00ff" />
+                    <rect x="12" y="6" width="4" height="2" fill="#ff00ff" />
+                    <rect x="0" y="8" width="16" height="2" fill="#ff00ff" />
+                    <rect x="2" y="10" width="2" height="2" fill="#ff00ff" />
+                    <rect x="6" y="10" width="2" height="2" fill="#ff00ff" />
+                    <rect x="8" y="10" width="2" height="2" fill="#ff00ff" />
+                    <rect x="12" y="10" width="2" height="2" fill="#ff00ff" />
+                    <rect x="0" y="12" width="2" height="2" fill="#ff00ff" />
+                    <rect x="4" y="12" width="2" height="2" fill="#ff00ff" />
+                    <rect x="10" y="12" width="2" height="2" fill="#ff00ff" />
+                    <rect x="14" y="12" width="2" height="2" fill="#ff00ff" />
+                  </svg>
+                  <span className="text-fuchsia-400" style={{ textShadow: '0 0 20px #f0f, 0 0 40px #f0f' }}>= 30 PTS</span>
+                </div>
+
+                {/* UFO */}
+                <div className="flex items-center justify-center gap-4 md:gap-12">
+                  <svg width="40" height="40" viewBox="0 0 16 16" className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 shadow-lg shadow-red-500/50" style={{ imageRendering: 'pixelated' }}>
+                    <rect x="6" y="0" width="4" height="2" fill="#ff0000" />
+                    <rect x="4" y="2" width="8" height="2" fill="#ff0000" />
+                    <rect x="2" y="4" width="12" height="2" fill="#ff0000" />
+                    <rect x="0" y="6" width="16" height="2" fill="#ff0000" />
+                    <rect x="0" y="8" width="2" height="2" fill="#ff0000" />
+                    <rect x="4" y="8" width="2" height="2" fill="#ff0000" />
+                    <rect x="10" y="8" width="2" height="2" fill="#ff0000" />
+                    <rect x="14" y="8" width="2" height="2" fill="#ff0000" />
+                    <rect x="4" y="4" width="2" height="2" fill="#ffffff" />
+                    <rect x="10" y="4" width="2" height="2" fill="#ffffff" />
+                  </svg>
+                  <span className="text-red-500" style={{ textShadow: '0 0 20px #f00, 0 0 40px #f00' }}>= ??? PTS</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setGameState('menu')}
+                className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-['Press_Start_2P'] text-white animate-pulse mt-8 md:mt-12 border-4 border-white px-6 sm:px-8 md:px-12 py-3 sm:py-4 md:py-6 hover:bg-white hover:text-black transition-all relative z-10 shadow-lg shadow-white/50"
+                style={{ textShadow: '0 0 10px #fff' }}
+              >
+                PLAY SPACE INVADERS
+              </button>
+
+              <div className="mt-8 md:mt-20 flex items-center gap-3 md:gap-6 relative z-10">
+                <Coins className="text-yellow-400" size={window.innerWidth < 640 ? 32 : 48} />
+                <span className="text-2xl sm:text-3xl md:text-4xl font-['Press_Start_2P'] text-yellow-400 glow-yellow">
+                  {potAmount.toLocaleString()} SATS
+                </span>
+              </div>
+
+              <p className="mt-4 md:mt-8 text-green-400 text-xs sm:text-sm md:text-base lg:text-xl font-['Press_Start_2P'] animate-pulse text-center px-4">
+                PRESS ENTER OR CLICK BUTTON
+              </p>
+            </div>
+          )}
+
+
+
+          {gameState === 'menu' && (
+            <div className="min-h-screen flex items-center justify-center bg-black p-8">
+              <div className="max-w-5xl w-full mx-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  <div className="bg-gray-900 rounded-lg p-10 border-4 border-purple-500 shadow-2xl shadow-purple-500/50">
+                    <h2 className="text-5xl font-bold mb-8 text-green-400 font-['Press_Start_2P'] glow-green">
+                      READY?
+                    </h2>
+                    <p className="text-xl text-gray-400 mb-8 font-['Press_Start_2P']">
+                      PAY 1000 SATS
                     </p>
-                  ) : (
-                    leaderboard.slice(0, 5).map((entry, index) => (
-                      <div
-                        key={index}
-                        className={`flex items-center justify-between p-4 rounded ${
-                          index === 0 ? 'bg-yellow-500/20 border-4 border-yellow-500 shadow-lg shadow-yellow-500/30' :
-                          index === 1 ? 'bg-gray-500/20 border-4 border-gray-400 shadow-lg shadow-gray-400/30' :
-                          index === 2 ? 'bg-orange-500/20 border-4 border-orange-500 shadow-lg shadow-orange-500/30' :
-                          'bg-gray-800/50 border-2 border-gray-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <span className="text-4xl font-bold w-16">
-                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`}
-                          </span>
-                          <span className="font-bold text-lg font-['Press_Start_2P']">{entry.playerName}</span>
-                        </div>
-                        <span className="text-2xl font-mono font-bold text-green-400 glow-green">{entry.score}</span>
+
+                    <input
+                      type="text"
+                      placeholder="NAME"
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      className="w-full px-6 py-4 bg-black border-4 border-green-400 rounded mb-8 text-white text-xl font-['Press_Start_2P'] shadow-lg shadow-green-400/30"
+                    />
+
+                    <button
+                      onClick={createPayment}
+                      className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-bold py-5 px-8 rounded-lg text-2xl flex items-center justify-center gap-4 font-['Press_Start_2P'] shadow-2xl shadow-yellow-500/50"
+                    >
+                      <Zap size={36} />
+                      PAY & PLAY
+                    </button>
+                  </div>
+
+                  <div className="bg-gray-900 rounded-lg p-10 border-4 border-purple-500 shadow-2xl shadow-purple-500/50">
+                    <div className="flex items-center gap-3 mb-8">
+                      <Trophy className="text-yellow-400" size={40} />
+                      <h2 className="text-4xl font-bold font-['Press_Start_2P']">TOP 5</h2>
+                    </div>
+
+                    <div className="space-y-3">
+                      {leaderboard.slice(0, 5).length === 0 ? (
+                        <p className="text-gray-500 text-center py-12 font-['Press_Start_2P'] text-sm">
+                          NO SCORES YET
+                        </p>
+                      ) : (
+                        leaderboard.slice(0, 5).map((entry, index) => (
+                          <div
+                            key={index}
+                            className={`flex items-center justify-between p-4 rounded ${index === 0 ? 'bg-yellow-500/20 border-4 border-yellow-500 shadow-lg shadow-yellow-500/30' :
+                              index === 1 ? 'bg-gray-500/20 border-4 border-gray-400 shadow-lg shadow-gray-400/30' :
+                                index === 2 ? 'bg-orange-500/20 border-4 border-orange-500 shadow-lg shadow-orange-500/30' :
+                                  'bg-gray-800/50 border-2 border-gray-700'
+                              }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <span className="text-4xl font-bold w-16">
+                                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`}
+                              </span>
+                              <span className="font-bold text-lg font-['Press_Start_2P']">{entry.playerName}</span>
+                            </div>
+                            <span className="text-2xl font-mono font-bold text-green-400 glow-green">{entry.score}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t-4 border-purple-500">
+                      <p className="text-yellow-400 font-['Press_Start_2P'] text-sm mb-3">PRIZES:</p>
+                      <div className="space-y-2 text-sm font-['Press_Start_2P']">
+                        <div>🥇 50% = {Math.floor(potAmount * 0.5).toLocaleString()} SATS</div>
+                        <div>🥈 30% = {Math.floor(potAmount * 0.3).toLocaleString()} SATS</div>
+                        <div>🥉 20% = {Math.floor(potAmount * 0.2).toLocaleString()} SATS</div>
                       </div>
-                    ))
-                  )}
-                </div>
-                
-                <div className="mt-8 pt-6 border-t-4 border-purple-500">
-                  <p className="text-yellow-400 font-['Press_Start_2P'] text-sm mb-3">PRIZES:</p>
-                  <div className="space-y-2 text-sm font-['Press_Start_2P']">
-                    <div>🥇 50% = {Math.floor(potAmount * 0.5).toLocaleString()} SATS</div>
-                    <div>🥈 30% = {Math.floor(potAmount * 0.3).toLocaleString()} SATS</div>
-                    <div>🥉 20% = {Math.floor(potAmount * 0.2).toLocaleString()} SATS</div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {gameState === 'playing' && (
-		  <div className="flex flex-col items-center justify-center min-h-screen bg-black p-2">
-			<canvas
-			  ref={canvasRef}
-			  className="border-4 border-green-500 rounded"
-			  style={{maxWidth: '100%', maxHeight: '80vh'}}
-			/>
-			
-			{/* ADD THIS MOBILE CONTROLS SECTION */}
-			{isMobile && (
-			  <div className="fixed bottom-4 left-0 right-0 flex justify-between px-4 z-50">
-				<div className="flex gap-2">
-				  <button
-					onTouchStart={() => handleMobileControl('left', true)}
-					onTouchEnd={() => handleMobileControl('left', false)}
-					className="bg-green-600 p-6 rounded-full active:bg-green-700"
-				  >
-					<ChevronLeft size={32} />
-				  </button>
-				  <button
-					onTouchStart={() => handleMobileControl('right', true)}
-					onTouchEnd={() => handleMobileControl('right', false)}
-					className="bg-green-600 p-6 rounded-full active:bg-green-700"
-				  >
-					<ChevronRight size={32} />
-				  </button>
-				</div>
-				<button
-				  onTouchStart={() => handleMobileControl('shoot', true)}
-				  onTouchEnd={() => handleMobileControl('shoot', false)}
-				  className="bg-red-600 p-6 rounded-full active:bg-red-700 text-xl font-bold"
-				>
-				  FIRE
-				</button>
-			  </div>
-			)}
-		  </div>
-		)}
+          {gameState === 'playing' && (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-black p-2">
+              <canvas
+                ref={canvasRef}
+                className="border-4 border-green-500 rounded"
+                style={{ maxWidth: '100%', maxHeight: '80vh' }}
+              />
 
-      {gameState === 'gameover' && (
-        <div className="min-h-screen flex items-center justify-center bg-black">
-          <div className="bg-gray-900 rounded-lg p-16 border-4 border-red-500 max-w-3xl shadow-2xl shadow-red-500/50">
-            <h2 className="text-7xl font-bold mb-8 text-red-400 text-center font-['Press_Start_2P'] glow animate-glow">
-              GAME OVER
-            </h2>
-            <p className="text-6xl mb-6 text-center font-['Press_Start_2P'] text-white glow">
-              {score}
-            </p>
-            <p className="text-3xl mb-3 text-center font-['Press_Start_2P'] text-gray-400">
-              LEVEL {level}
-            </p>
-            <p className="text-xl mb-12 text-center text-gray-400 font-['Press_Start_2P']">
-              ACC: {gameData.shotsFired > 0 ? Math.round((gameData.hits / gameData.shotsFired) * 100) : 0}%
-            </p>
-            <div className="flex gap-6 justify-center flex-wrap">
-              <button
-                onClick={submitScore}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-5 px-12 rounded-lg text-2xl font-['Press_Start_2P'] shadow-lg shadow-green-600/50"
-              >
-                SUBMIT
-              </button>
-              <button
-                onClick={() => setGameState('intro')}
-                className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-5 px-12 rounded-lg text-2xl font-['Press_Start_2P'] shadow-lg shadow-gray-600/50"
-              >
-                MENU
-              </button>
+              {/* ADD THIS MOBILE CONTROLS SECTION */}
+              {isMobile && (
+                <div className="fixed bottom-4 left-0 right-0 flex justify-between px-4 z-50">
+                  <div className="flex gap-2">
+                    <button
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        handleMobileControl('left', true);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        handleMobileControl('left', false);
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className="bg-green-600 p-4 sm:p-6 rounded-full active:bg-green-700 select-none touch-none"
+                      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+                    >
+                      <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
+                    </button>
+                    <button
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        handleMobileControl('right', true);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        handleMobileControl('right', false);
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className="bg-green-600 p-4 sm:p-6 rounded-full active:bg-green-700 select-none touch-none"
+                      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+                    >
+                      <ChevronRight size={24} className="sm:w-8 sm:h-8" />
+                    </button>
+                  </div>
+                  <button
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      handleMobileControl('shoot', true);
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      handleMobileControl('shoot', false);
+                    }}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className="bg-red-600 p-4 sm:p-6 rounded-full active:bg-red-700 text-base sm:text-xl font-bold select-none touch-none"
+                    style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+                  >
+                    FIRE
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {gameState === 'payment' && (
-        <div className="min-h-screen flex items-center justify-center bg-black p-8">
-          <div className="bg-gray-900 rounded-lg p-16 border-4 border-yellow-500 max-w-3xl shadow-2xl shadow-yellow-500/50">
-            <Zap size={120} className="mx-auto mb-8 text-yellow-400 animate-pulse" style={{filter: 'drop-shadow(0 0 30px rgba(255,255,0,0.8))'}} />
-            <h2 className="text-6xl font-bold mb-8 text-center font-['Press_Start_2P'] glow-yellow">
-              PAY TO PLAY
-            </h2>
-            <p className="text-2xl text-gray-400 mb-10 text-center font-['Press_Start_2P']">
-              SCAN INVOICE
-            </p>
-            
-            {invoice && (
-              <div className="space-y-8">
-                <div className="bg-black p-6 rounded border-4 border-yellow-500 break-all font-mono text-base max-h-48 overflow-y-auto shadow-inner">
-                  {invoice.paymentRequest}
+          {gameState === 'gameover' && (
+            <div className="min-h-screen flex items-center justify-center bg-black">
+              <div className="bg-gray-900 rounded-lg p-16 border-4 border-red-500 max-w-3xl shadow-2xl shadow-red-500/50">
+                <h2 className="text-7xl font-bold mb-8 text-red-400 text-center font-['Press_Start_2P'] glow animate-glow">
+                  GAME OVER
+                </h2>
+                <p className="text-6xl mb-6 text-center font-['Press_Start_2P'] text-white glow">
+                  {score}
+                </p>
+                <p className="text-3xl mb-3 text-center font-['Press_Start_2P'] text-gray-400">
+                  LEVEL {level}
+                </p>
+                <p className="text-xl mb-12 text-center text-gray-400 font-['Press_Start_2P']">
+                  ACC: {gameData.shotsFired > 0 ? Math.round((gameData.hits / gameData.shotsFired) * 100) : 0}%
+                </p>
+                <div className="flex gap-6 justify-center flex-wrap">
+                  <button
+                    onClick={submitScore}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-5 px-12 rounded-lg text-2xl font-['Press_Start_2P'] shadow-lg shadow-green-600/50"
+                  >
+                    SUBMIT
+                  </button>
+                  <button
+                    onClick={() => setGameState('intro')}
+                    className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-5 px-12 rounded-lg text-2xl font-['Press_Start_2P'] shadow-lg shadow-gray-600/50"
+                  >
+                    MENU
+                  </button>
                 </div>
-                
-                <button
-                  onClick={copyInvoice}
-                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-4 px-10 rounded text-2xl flex items-center justify-center gap-4 font-['Press_Start_2P'] shadow-lg shadow-yellow-500/50"
-                >
-                  {copied ? <Check size={28} /> : <Copy size={28} />}
-                  {copied ? 'COPIED!' : 'COPY'}
-                </button>
-
-                <div className="text-center text-2xl font-['Press_Start_2P']">
-                  <p className="text-gray-400 mb-4">{invoice.amount} SATS</p>
-                  <p className="text-yellow-400 animate-pulse glow-yellow">
-                    ⚡ WAITING...
-                  </p>
-                </div>
-                
-                <button
-                  onClick={() => {
-                    clearInterval(paymentCheckRef.current);
-                    setGameState('intro');
-                  }}
-                  className="w-full text-gray-400 hover:text-white font-['Press_Start_2P'] text-lg"
-                >
-                  CANCEL
-                </button>
               </div>
-            )}
-          </div>
-        </div>
-      )}		
-	  </>
-     )}
+            </div>
+          )}
+
+          {gameState === 'payment' && (
+            <div className="min-h-screen flex items-center justify-center bg-black p-8">
+              <div className="bg-gray-900 rounded-lg p-16 border-4 border-yellow-500 max-w-3xl shadow-2xl shadow-yellow-500/50">
+                <Zap size={120} className="mx-auto mb-8 text-yellow-400 animate-pulse" style={{ filter: 'drop-shadow(0 0 30px rgba(255,255,0,0.8))' }} />
+                <h2 className="text-6xl font-bold mb-8 text-center font-['Press_Start_2P'] glow-yellow">
+                  PAY TO PLAY
+                </h2>
+                <p className="text-2xl text-gray-400 mb-10 text-center font-['Press_Start_2P']">
+                  SCAN INVOICE
+                </p>
+
+                {invoice && (
+                  <div className="space-y-8">
+                    <div className="bg-black p-6 rounded border-4 border-yellow-500 break-all font-mono text-base max-h-48 overflow-y-auto shadow-inner">
+                      {invoice.paymentRequest}
+                    </div>
+
+                    <button
+                      onClick={copyInvoice}
+                      className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-4 px-10 rounded text-2xl flex items-center justify-center gap-4 font-['Press_Start_2P'] shadow-lg shadow-yellow-500/50"
+                    >
+                      {copied ? <Check size={28} /> : <Copy size={28} />}
+                      {copied ? 'COPIED!' : 'COPY'}
+                    </button>
+
+                    <div className="text-center text-2xl font-['Press_Start_2P']">
+                      <p className="text-gray-400 mb-4">{invoice.amount} SATS</p>
+                      <p className="text-yellow-400 animate-pulse glow-yellow">
+                        ⚡ WAITING...
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        clearInterval(paymentCheckRef.current);
+                        setGameState('intro');
+                      }}
+                      className="w-full text-gray-400 hover:text-white font-['Press_Start_2P'] text-lg"
+                    >
+                      CANCEL
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
