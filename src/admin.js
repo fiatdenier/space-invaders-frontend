@@ -12,7 +12,6 @@ const AdminPanel = ({ onStartTestGame }) => {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    // Check if admin key is saved in sessionStorage
     const savedKey = sessionStorage.getItem('adminKey');
     if (savedKey) {
       setAdminKey(savedKey);
@@ -28,7 +27,6 @@ const AdminPanel = ({ onStartTestGame }) => {
       return () => clearInterval(interval);
     }
   }, [isAuthenticated]);
-  
 
   const fetchData = async () => {
     try {
@@ -50,7 +48,6 @@ const AdminPanel = ({ onStartTestGame }) => {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Simple check - in production, verify against backend
     if (adminKey.length > 0) {
       sessionStorage.setItem('adminKey', adminKey);
       setIsAuthenticated(true);
@@ -67,7 +64,7 @@ const AdminPanel = ({ onStartTestGame }) => {
   };
 
   const handleResetTournament = async () => {
-    if (!window.confirm('Are you sure you want to reset the entire tournament? This will delete all scores and reset the pot.')) {
+    if (!window.confirm('Are you sure you want to reset the entire tournament?')) {
       return;
     }
 
@@ -114,11 +111,9 @@ const AdminPanel = ({ onStartTestGame }) => {
   };
 
   const handleTestGame = () => {
-    // Generate a test session token
     const testToken = 'test-session-' + Date.now();
     sessionStorage.setItem('testGameToken', testToken);
     
-    // Call the parent callback to start game
     if (onStartTestGame) {
       onStartTestGame(testToken);
     }
@@ -167,7 +162,6 @@ const AdminPanel = ({ onStartTestGame }) => {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <Shield className="text-green-400" size={40} />
@@ -181,14 +175,12 @@ const AdminPanel = ({ onStartTestGame }) => {
           </button>
         </div>
 
-        {/* Message */}
         {message && (
           <div className="bg-blue-600 p-4 rounded mb-6">
             {message}
           </div>
         )}
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-gray-800 rounded-lg p-6 border-2 border-yellow-500">
             <div className="flex items-center gap-3 mb-2">
@@ -221,7 +213,6 @@ const AdminPanel = ({ onStartTestGame }) => {
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <button
             onClick={handleTestGame}
@@ -248,7 +239,6 @@ const AdminPanel = ({ onStartTestGame }) => {
           </button>
         </div>
 
-        {/* Prize Distribution */}
         {topThree.length > 0 && (
           <div className="bg-gray-800 rounded-lg p-6 mb-8 border-2 border-yellow-500">
             <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
@@ -282,7 +272,6 @@ const AdminPanel = ({ onStartTestGame }) => {
           </div>
         )}
 
-        {/* Full Leaderboard */}
         <div className="bg-gray-800 rounded-lg p-6 border-2 border-green-500">
           <h2 className="text-2xl font-bold mb-4">Full Leaderboard</h2>
           <div className="space-y-2 max-h-96 overflow-y-auto">
