@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Zap, Trophy, Coins, Maximize2, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import AdminPanel from './Admin'; 
 
 const API_BASE_URL = 'https://invaders-api.fiatdenier.com/api';
 
