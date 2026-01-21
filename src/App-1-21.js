@@ -436,29 +436,8 @@ const SpaceInvadersTournament = () => {
       }
       playSound('march');
     }
+
     const now = Date.now();
-    if (!game.bonusAlien && now - game.lastBonusSpawn > (15000 + Math.random() * 15000)) {
-      game.bonusAlien = {
-        x: -100,
-        y: 40,
-        width: 60,
-        height: 30,
-        speed: 2,
-        points: Math.floor(Math.random() * 3) * 50 + 50 // 50, 100, or 150 points
-      };
-      game.lastBonusSpawn = now;
-      playSound('bonus');
-    }
-
-    // Update bonus alien position
-    if (game.bonusAlien) {
-      game.bonusAlien.x += game.bonusAlien.speed;
-      // Remove if off screen
-      if (game.bonusAlien.x > canvas.width + 100) {
-        game.bonusAlien = null;
-      }
-    }
-
     if (now - game.lastEnemyShot > Math.max(350, 1000 - level * 80)) {
       if (aliveInvaders.length > 0) {
         const shooter = aliveInvaders[Math.floor(Math.random() * aliveInvaders.length)];
@@ -484,7 +463,6 @@ const SpaceInvadersTournament = () => {
           invader.alive = false;
           game.bullets.splice(bIndex, 1);
           setScore(s => s + invader.points);
-          console.log('Hit! New score:', score + invader.points);
           setGameData(prev => ({ ...prev, hits: prev.hits + 1 }));
           playSound('hit');
         }
@@ -641,45 +619,31 @@ const SpaceInvadersTournament = () => {
       }
     });
 
-    // Draw bonus alien (UFO)
-    if (game.bonusAlien) {
-      ctx.fillStyle = '#ff0000';
-      // Top dome
-      ctx.fillRect(game.bonusAlien.x + 10, game.bonusAlien.y, 40, 8);
-      // Middle section with windows
-      ctx.fillRect(game.bonusAlien.x + 5, game.bonusAlien.y + 8, 50, 8);
-      // Windows (white)
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(game.bonusAlien.x + 10, game.bonusAlien.y + 10, 6, 4);
-      ctx.fillRect(game.bonusAlien.x + 22, game.bonusAlien.y + 10, 6, 4);
-      ctx.fillRect(game.bonusAlien.x + 34, game.bonusAlien.y + 10, 6, 4);
-      // Bottom saucer (red again)
-      ctx.fillStyle = '#ff0000';
-      ctx.fillRect(game.bonusAlien.x, game.bonusAlien.y + 16, 60, 4);
-      ctx.fillRect(game.bonusAlien.x + 5, game.bonusAlien.y + 20, 4, 4);
-      ctx.fillRect(game.bonusAlien.x + 15, game.bonusAlien.y + 20, 4, 4);
-      ctx.fillRect(game.bonusAlien.x + 25, game.bonusAlien.y + 20, 4, 4);
-      ctx.fillRect(game.bonusAlien.x + 35, game.bonusAlien.y + 20, 4, 4);
-      ctx.fillRect(game.bonusAlien.x + 45, game.bonusAlien.y + 20, 4, 4);
-    }
-
-    // Draw barriers
+    // Draw barriers with glow
+    //ctx.shadowBlur = 10;
+    //ctx.shadowColor = '#00ff00';
     ctx.fillStyle = '#00ff00';
     game.barriers.forEach(barrier => {
       if (barrier.alive) {
         ctx.fillRect(barrier.x, barrier.y, barrier.width, barrier.height);
       }
     });
+    //ctx.shadowBlur = 0;
 
-    // Draw bullets
+    // Draw bullets with glow
     game.bullets.forEach(bullet => {
       if (bullet.fromPlayer) {
+        //ctx.shadowBlur = 15;
+        //ctx.shadowColor = '#ffffff';
         ctx.fillStyle = '#ffffff';
       } else {
+        //ctx.shadowBlur = 15;
+        //ctx.shadowColor = '#ff0000';
         ctx.fillStyle = '#ff0000';
       }
       ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
     });
+    //ctx.shadowBlur = 0;
 
     // Draw player or explosion
     if (game.player.exploding) {
@@ -689,15 +653,21 @@ const SpaceInvadersTournament = () => {
         const dist = exp * 3;
         const colors = ['#ffff00', '#ff8800', '#ff0000'];
         ctx.fillStyle = colors[exp % 3];
+        //ctx.shadowBlur = 20;
+        //ctx.shadowColor = ctx.fillStyle;
         ctx.fillRect(
           game.player.x + 40 + Math.cos(angle) * dist,
           game.player.y + 25 + Math.sin(angle) * dist,
           12, 12
         );
       }
+      //ctx.shadowBlur = 0;
     } else {
-      // Draw detailed ship
+      // Draw detailed ship with glow
+      //ctx.shadowBlur = 20;
+      //ctx.shadowColor = '#00ff00';
       ctx.fillStyle = '#00ff00';
+
       // Main body
       ctx.fillRect(game.player.x + 10, game.player.y + 30, 60, 20);
       // Cockpit
@@ -710,19 +680,27 @@ const SpaceInvadersTournament = () => {
       ctx.fillRect(game.player.x + 65, game.player.y + 35, 15, 15);
       // Cannon
       ctx.fillRect(game.player.x + 37, game.player.y, 6, 30);
+      //ctx.shadowBlur = 0;
     }
 
-    // UI
+    // UI with retro glow
+    //ctx.shadowBlur = 15;
+    //ctx.shadowColor = '#00ff00';
     ctx.fillStyle = '#00ff00';
     ctx.font = 'bold 36px "Press Start 2P", monospace';
     ctx.fillText(`SCORE ${score}`, 30, 50);
+
+    //ctx.shadowColor = '#ffff00';
+    //ctx.fillStyle = '#ffff00';
     ctx.fillText(`LEVEL ${level}`, canvas.width / 2 - 120, 50);
 
-    // Lives
+    // Lives with glow
+    ctx.shadowColor = '#00ff00';
     ctx.fillStyle = '#00ff00';
     for (let i = 0; i < lives; i++) {
       ctx.fillRect(canvas.width - 250 + i * 60, 20, 50, 30);
     }
+    //ctx.shadowBlur = 0;
   };
 
   const fetchLeaderboard = async () => {
@@ -899,7 +877,7 @@ const SpaceInvadersTournament = () => {
               </div>
 
               <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-9xl font-bold mb-4 md:mb-8 relative z-10 text-center">
-                <span className="text-green-400 glow-green animate-glow" style={{ textShadow: '0 0 20px #0f0, 0 0 40px #0f0, 0 0 80px #0f0' }}>
+                <span className="text-white glow" style={{ textShadow: '0 0 20px #fff, 0 0 40px #fff, 0 0 60px #fff' }}>
                   SPACE
                 </span>
                 <br />
