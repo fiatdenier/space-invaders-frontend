@@ -5,7 +5,7 @@ import AdminPanel from './Admin';
 const API_BASE_URL = 'https://invaders-api.fiatdenier.com/api';
 
 const SpaceInvadersTournament = () => {
-
+  const scoreRef = useRef(0); // Track score for real-time canvas access
   const [gameState, setGameState] = useState('intro');
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
@@ -483,7 +483,9 @@ const SpaceInvadersTournament = () => {
           bullet.y + bullet.height > invader.y) {
           invader.alive = false;
           game.bullets.splice(bIndex, 1);
-          setScore(s => s + invader.points);
+          const points = invader.points;
+          scoreRef.current += points; // Update ref immediately
+          setScore(s => s + points);
           console.log('Hit! New score:', score + invader.points);
           setGameData(prev => ({ ...prev, hits: prev.hits + 1 }));
           playSound('hit');
@@ -715,7 +717,7 @@ const SpaceInvadersTournament = () => {
     // UI
     ctx.fillStyle = '#00ff00';
     ctx.font = 'bold 36px "Press Start 2P", monospace';
-    ctx.fillText(`SCORE ${score}`, 30, 50);
+    ctx.fillText(`SCORE ${scoreRef.current}`, 30, 50);
     ctx.fillText(`LEVEL ${level}`, canvas.width / 2 - 120, 50);
 
     // Lives
@@ -796,6 +798,7 @@ const SpaceInvadersTournament = () => {
 
   const startGame = () => {
     setScore(0);
+    scoreRef.current = 0;
     setLevel(1);
     setLives(3);
     setGameData({ startTime: Date.now(), shotsFired: 0, hits: 0 });
