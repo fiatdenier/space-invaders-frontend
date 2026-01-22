@@ -46,6 +46,7 @@ const SpaceInvadersTournament = () => {
     invaderDirection: 1,
     invaderSpeed: 1,
     lastEnemyShot: 0,
+    lastBonusSpawn: Date.now(),
     animationFrame: 0,
     keys: {},
     mobileInput: { left: false, right: false, shoot: false }
@@ -165,6 +166,11 @@ const SpaceInvadersTournament = () => {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
+
+    // Resume context if it was suspended (browser security)
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
 
     switch (type) {
       case 'shoot':
@@ -294,6 +300,8 @@ const SpaceInvadersTournament = () => {
 
         alienShootOsc.start(ctx.currentTime);
         alienShootOsc.stop(ctx.currentTime + 0.12);
+        break;
+      default:
         break;
     }
   };
@@ -437,7 +445,8 @@ const SpaceInvadersTournament = () => {
       playSound('march');
     }
     const now = Date.now();
-    if (!game.bonusAlien && now - game.lastBonusSpawn > (15000 + Math.random() * 15000)) {
+    // CHANGED: UFO now appears randomly between 30 and 60 seconds
+    if (!game.bonusAlien && now - game.lastBonusSpawn > (30000 + Math.random() * 30000)) {
       game.bonusAlien = {
         x: -100,
         y: 40,
@@ -456,6 +465,8 @@ const SpaceInvadersTournament = () => {
       // Remove if off screen
       if (game.bonusAlien.x > canvas.width + 100) {
         game.bonusAlien = null;
+      } else if (game.animationFrame % 25 === 0) {
+        playSound('bonus');
       }
     }
 
@@ -471,6 +482,7 @@ const SpaceInvadersTournament = () => {
           fromPlayer: false
         });
         game.lastEnemyShot = now;
+        playSound('alienShoot'); // Added alienShoot sound trigger
       }
     }
 
@@ -489,6 +501,26 @@ const SpaceInvadersTournament = () => {
           console.log('Hit! New score:', score + invader.points);
           setGameData(prev => ({ ...prev, hits: prev.hits + 1 }));
           playSound('hit');
+        }
+
+        if (bullet.fromPlayer && game.bonusAlien) {
+          if (bullet.x < game.bonusAlien.x + game.bonusAlien.width &&
+            bullet.x + bullet.width > game.bonusAlien.x &&
+            bullet.y < game.bonusAlien.y + game.bonusAlien.height &&
+            bullet.y + bullet.height > game.bonusAlien.y) {
+
+            // Add points and play hit sound
+            const points = game.bonusAlien.points;
+            scoreRef.current += points; // Using ref for real-time update
+            setScore(s => s + points);
+
+            // Kill the UFO and the bullet
+            game.bonusAlien = null;
+            game.bullets.splice(bIndex, 1);
+
+            playSound('hit');
+            return; // Prevent further checks for this deleted bullet
+          }
         }
       });
 
@@ -598,11 +630,6 @@ const SpaceInvadersTournament = () => {
     const alienType = type >= 3 ? 2 : type;
     const sprite = sprites[alienType][frame % 2];
     const colors = ['#ffff00', '#00ffff', '#ff00ff'];
-    const glowColors = ['rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,0,255,0.5)'];
-
-    // Draw glow effect
-    //ctx.shadowBlur = 15;
-    //ctx.shadowColor = glowColors[alienType];
 
     ctx.fillStyle = colors[alienType];
     sprite.forEach((row, rowIndex) => {
@@ -612,8 +639,6 @@ const SpaceInvadersTournament = () => {
         }
       }
     });
-
-    //ctx.shadowBlur = 0;
   };
 
   const render = (ctx) => {
@@ -805,7 +830,13 @@ const SpaceInvadersTournament = () => {
     gameObjectsRef.current.invaders = [];
     gameObjectsRef.current.bullets = [];
     gameObjectsRef.current.barriers = [];
+    gameObjectsRef.current.lastBonusSpawn = Date.now();
     setGameState('playing');
+    
+    // Resume audio context on game start
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
   };
 
   useEffect(() => {
@@ -863,12 +894,11 @@ const SpaceInvadersTournament = () => {
 
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white overflow-hidden font-['Press_Start_2P']">
-      {/* Admin Panel Toggle - Add this */}
+      {/* Admin Panel Toggle */}
       {showAdmin ? (
         <AdminPanel onStartTestGame={startTestGame} />
       ) : (
         <>
-          {/* Your existing game UI here */}
           <button
             onClick={toggleFullscreen}
             className="fixed top-4 right-4 z-50 bg-purple-600 hover:bg-purple-700 p-3 rounded-lg shadow-lg shadow-purple-500/50"
@@ -886,7 +916,6 @@ const SpaceInvadersTournament = () => {
 
           {gameState === 'intro' && (
             <div className="min-h-screen flex flex-col items-center justify-center bg-black p-4 md:p-8 relative overflow-hidden">
-              {/* Animated background stars */}
               <div className="absolute inset-0 opacity-30">
                 {[...Array(50)].map((_, i) => (
                   <div
@@ -1018,8 +1047,6 @@ const SpaceInvadersTournament = () => {
             </div>
           )}
 
-
-
           {gameState === 'menu' && (
             <div className="min-h-screen flex items-center justify-center bg-black p-8">
               <div className="max-w-5xl w-full mx-auto">
@@ -1104,7 +1131,6 @@ const SpaceInvadersTournament = () => {
                 style={{ maxWidth: '100%', maxHeight: '80vh' }}
               />
 
-              {/* ADD THIS MOBILE CONTROLS SECTION */}
               {isMobile && (
                 <div className="fixed bottom-4 left-0 right-0 flex justify-between px-4 z-50">
                   <div className="flex gap-2">
@@ -1119,7 +1145,6 @@ const SpaceInvadersTournament = () => {
                       }}
                       onContextMenu={(e) => e.preventDefault()}
                       className="bg-green-600 p-4 sm:p-6 rounded-full active:bg-green-700 select-none touch-none"
-                      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
                     >
                       <ChevronLeft size={24} className="sm:w-8 sm:h-8" />
                     </button>
@@ -1134,7 +1159,6 @@ const SpaceInvadersTournament = () => {
                       }}
                       onContextMenu={(e) => e.preventDefault()}
                       className="bg-green-600 p-4 sm:p-6 rounded-full active:bg-green-700 select-none touch-none"
-                      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
                     >
                       <ChevronRight size={24} className="sm:w-8 sm:h-8" />
                     </button>
@@ -1150,7 +1174,6 @@ const SpaceInvadersTournament = () => {
                     }}
                     onContextMenu={(e) => e.preventDefault()}
                     className="bg-red-600 p-4 sm:p-6 rounded-full active:bg-red-700 text-base sm:text-xl font-bold select-none touch-none"
-                    style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
                   >
                     FIRE
                   </button>
@@ -1195,7 +1218,7 @@ const SpaceInvadersTournament = () => {
           {gameState === 'payment' && (
             <div className="min-h-screen flex items-center justify-center bg-black p-8">
               <div className="bg-gray-900 rounded-lg p-16 border-4 border-yellow-500 max-w-3xl shadow-2xl shadow-yellow-500/50">
-                <Zap size={120} className="mx-auto mb-8 text-yellow-400 animate-pulse" style={{ filter: 'drop-shadow(0 0 30px rgba(255,255,0,0.8))' }} />
+                <Zap size={120} className="mx-auto mb-8 text-yellow-400 animate-pulse" />
                 <h2 className="text-6xl font-bold mb-8 text-center font-['Press_Start_2P'] glow-yellow">
                   PAY TO PLAY
                 </h2>
