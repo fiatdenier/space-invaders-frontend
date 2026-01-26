@@ -220,7 +220,13 @@ const SpaceInvadersTournament = () => {
 
     // Set march beat to loop and adjust playback rate based on game state
     if (soundsRef.current.marchBeat) {
-      soundsRef.current.marchBeat.loop = true;
+      soundsRef.current.marchBeat.loop = false; // Don't use browser loop
+      soundsRef.current.marchBeat.addEventListener('ended', function() {
+        if (gameObjectsRef.current.invaders.some(i => i.alive)) {
+          this.currentTime = 0;
+          this.play();
+        }
+      });
     }
 
     // Set bonus alien to loop
@@ -276,7 +282,7 @@ const SpaceInvadersTournament = () => {
     if (soundsRef.current.marchBeat) {
       const aliveCount = gameObjectsRef.current.invaders.filter(i => i.alive).length;
       // Increase playback rate as aliens die (1.0 = normal, 2.0 = double speed)
-      const playbackRate = 1.0 + ((55 - aliveCount) / 55) * 1.5; // Max 2.5x speed
+      const playbackRate = 1.0 + ((55 - aliveCount) / 55) * 0.8; // Max 2.5x speed
       soundsRef.current.marchBeat.playbackRate = playbackRate;
     }
   };
@@ -308,7 +314,7 @@ const SpaceInvadersTournament = () => {
       }
     }
     gameObjectsRef.current.invaders = invaders;
-    gameObjectsRef.current.invaderSpeed = 1 + (level * 0.3);
+    gameObjectsRef.current.invaderSpeed = 0.5 + (level * 0.3);
   };
 
   const initBarriers = () => {
@@ -401,7 +407,7 @@ const SpaceInvadersTournament = () => {
 
     const aliveInvaders = game.invaders.filter(inv => inv.alive);
 
-    if (game.animationFrame % 30 === 0 && aliveInvaders.length > 0) {
+    if (game.animationFrame % 180 === 0 && aliveInvaders.length > 0) {
       let hitEdge = false;
       aliveInvaders.forEach(inv => {
         inv.x += game.invaderDirection * game.invaderSpeed * 18;
