@@ -21,6 +21,10 @@ const SpaceInvadersTournament = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);  // ADD HERE
   const [testMode, setTestMode] = useState(false);
+  const soundsRef = useRef({});
+  const marchIntervalRef = useRef(null);
+  const bonusAlienSoundRef = useRef(null);
+  const [scorePopup, setScorePopup] = useState(null);
 
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
@@ -74,6 +78,46 @@ const SpaceInvadersTournament = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (gameState === 'playing') {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1400;
+      canvas.height = 900;
+
+      if (gameObjectsRef.current.invaders.length === 0) {
+        initGame();
+        setGameData(prev => ({ ...prev, startTime: Date.now() }));
+      }
+
+      // Start march beat
+      startMarchBeat();
+
+      const gameLoop = () => {
+        update();
+        render(ctx);
+        updateMarchSpeed(); // Update march speed each frame
+        gameLoopRef.current = requestAnimationFrame(gameLoop);
+      };
+
+      gameLoopRef.current = requestAnimationFrame(gameLoop);
+
+      return () => {
+        if (gameLoopRef.current) {
+          cancelAnimationFrame(gameLoopRef.current);
+        }
+        stopMarchBeat(); // Stop march when game ends
+        if (bonusAlienSoundRef.current) {
+          bonusAlienSoundRef.current.pause();
+          bonusAlienSoundRef.current.currentTime = 0;
+        }
+      };
+    } else {
+      stopMarchBeat(); // Stop march if not playing
+    }
+  }, [gameState, lives]);
   useEffect(() => {
     if (gameState === 'playing') {
       const canvas = canvasRef.current;
@@ -151,6 +195,42 @@ const SpaceInvadersTournament = () => {
   }, [showAdmin]);
 
 
+  // Preload all sound files
+  useEffect(() => {
+    soundsRef.current = {
+      playerShoot: new Audio('/sounds/player-shoot.wav'),
+      alienShoot: new Audio('/sounds/alien-shoot.wav'),
+      playerExplode: new Audio('/sounds/player-explode.wav'),
+      alienHit: new Audio('/sounds/alien-hit.wav'),
+      marchBeat: new Audio('/sounds/march-beat.wav'),
+      bonusAlien: new Audio('/sounds/bonus-alien.wav')
+    };
+
+    // Preload all sounds
+    Object.entries(soundsRef.current).forEach(([key, audio]) => {
+      audio.load();
+      audio.volume = 0.3;
+      audio.addEventListener('canplaythrough', () => {
+        console.log(`${key} loaded successfully`);
+      });
+      audio.addEventListener('error', (e) => {
+        console.error(`Error loading ${key}:`, e);
+      });
+    });
+
+    // Set march beat to loop and adjust playback rate based on game state
+    if (soundsRef.current.marchBeat) {
+      soundsRef.current.marchBeat.loop = true;
+    }
+
+    // Set bonus alien to loop
+    if (soundsRef.current.bonusAlien) {
+      soundsRef.current.bonusAlien.loop = true;
+    }
+  }, []);
+
+
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen();
@@ -162,147 +242,42 @@ const SpaceInvadersTournament = () => {
   };
 
   const playSound = (type) => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    const soundMap = {
+      'shoot': 'playerShoot',
+      'alienShoot': 'alienShoot',
+      'hit': 'alienHit',
+      'explode': 'playerExplode'
+    };
+
+    const soundKey = soundMap[type];
+    if (soundsRef.current[soundKey]) {
+      // Clone the audio to allow overlapping sounds
+      const sound = soundsRef.current[soundKey].cloneNode();
+      sound.volume = 0.3;
+      sound.play().catch(e => console.log('Audio play failed:', e));
     }
-    const ctx = audioContextRef.current;
+  };
 
-    // Resume context if it was suspended (browser security)
-    if (ctx.state === 'suspended') {
-      ctx.resume();
+  const startMarchBeat = () => {
+    if (soundsRef.current.marchBeat && soundsRef.current.marchBeat.paused) {
+      soundsRef.current.marchBeat.currentTime = 0;
+      soundsRef.current.marchBeat.play().catch(e => console.log('March beat failed:', e));
     }
+  };
 
-    switch (type) {
-      case 'shoot':
-        // Player laser - quick ascending tone
-        const shootOsc = ctx.createOscillator();
-        const shootGain = ctx.createGain();
-        shootOsc.connect(shootGain);
-        shootGain.connect(ctx.destination);
+  const stopMarchBeat = () => {
+    if (soundsRef.current.marchBeat) {
+      soundsRef.current.marchBeat.pause();
+      soundsRef.current.marchBeat.currentTime = 0;
+    }
+  };
 
-        shootOsc.frequency.setValueAtTime(1000, ctx.currentTime);
-        shootOsc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
-        shootGain.gain.setValueAtTime(0.3, ctx.currentTime);
-        shootGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-
-        shootOsc.start(ctx.currentTime);
-        shootOsc.stop(ctx.currentTime + 0.1);
-        break;
-
-      case 'hit':
-        // Alien explosion - harsh burst
-        const hitOsc = ctx.createOscillator();
-        const hitGain = ctx.createGain();
-
-        hitOsc.type = 'sawtooth';
-        hitOsc.connect(hitGain);
-        hitGain.connect(ctx.destination);
-
-        hitOsc.frequency.setValueAtTime(400, ctx.currentTime);
-        hitOsc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.15);
-        hitGain.gain.setValueAtTime(0.4, ctx.currentTime);
-        hitGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-
-        hitOsc.start(ctx.currentTime);
-        hitOsc.stop(ctx.currentTime + 0.15);
-        break;
-
-      case 'explode':
-        // Player ship explosion - longer, deeper
-        const explodeOsc1 = ctx.createOscillator();
-        const explodeOsc2 = ctx.createOscillator();
-        const explodeGain = ctx.createGain();
-
-        explodeOsc1.type = 'sawtooth';
-        explodeOsc2.type = 'square';
-
-        explodeOsc1.connect(explodeGain);
-        explodeOsc2.connect(explodeGain);
-        explodeGain.connect(ctx.destination);
-
-        explodeOsc1.frequency.setValueAtTime(500, ctx.currentTime);
-        explodeOsc1.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.8);
-        explodeOsc2.frequency.setValueAtTime(250, ctx.currentTime);
-        explodeOsc2.frequency.exponentialRampToValueAtTime(15, ctx.currentTime + 0.8);
-
-        explodeGain.gain.setValueAtTime(0.5, ctx.currentTime);
-        explodeGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
-
-        explodeOsc1.start(ctx.currentTime);
-        explodeOsc2.start(ctx.currentTime);
-        explodeOsc1.stop(ctx.currentTime + 0.8);
-        explodeOsc2.stop(ctx.currentTime + 0.8);
-        break;
-
-      case 'march':
-        // Classic 4-beat march that speeds up
-        const aliveCount = gameObjectsRef.current.invaders.filter(i => i.alive).length;
-        const marchOsc = ctx.createOscillator();
-        const marchGain = ctx.createGain();
-
-        marchOsc.type = 'square';
-        marchOsc.connect(marchGain);
-        marchGain.connect(ctx.destination);
-
-        // Speed increases as aliens die
-        const baseFreq = 80 + (55 - aliveCount) * 4;
-        marchOsc.frequency.value = baseFreq;
-
-        marchGain.gain.setValueAtTime(0.15, ctx.currentTime);
-        marchGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-
-        marchOsc.start(ctx.currentTime);
-        marchOsc.stop(ctx.currentTime + 0.1);
-        break;
-
-      case 'bonus':
-        // UFO flying sound - continuous warble
-        const ufoOsc = ctx.createOscillator();
-        const ufoGain = ctx.createGain();
-        const ufoLFO = ctx.createOscillator();
-        const ufoLFOGain = ctx.createGain();
-
-        ufoOsc.type = 'square';
-        ufoLFO.type = 'sine';
-        ufoLFO.frequency.value = 6; // Warble speed
-
-        ufoLFOGain.gain.value = 50; // Warble depth
-        ufoLFO.connect(ufoLFOGain);
-        ufoLFOGain.connect(ufoOsc.frequency);
-
-        ufoOsc.frequency.value = 400;
-        ufoOsc.connect(ufoGain);
-        ufoGain.connect(ctx.destination);
-
-        ufoGain.gain.setValueAtTime(0.2, ctx.currentTime);
-        ufoGain.gain.setValueAtTime(0.2, ctx.currentTime + 0.3);
-        ufoGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-
-        ufoOsc.start(ctx.currentTime);
-        ufoLFO.start(ctx.currentTime);
-        ufoOsc.stop(ctx.currentTime + 0.4);
-        ufoLFO.stop(ctx.currentTime + 0.4);
-        break;
-
-      case 'alienShoot':
-        // Alien shot - descending tone (opposite of player)
-        const alienShootOsc = ctx.createOscillator();
-        const alienShootGain = ctx.createGain();
-
-        alienShootOsc.type = 'triangle';
-        alienShootOsc.connect(alienShootGain);
-        alienShootGain.connect(ctx.destination);
-
-        alienShootOsc.frequency.setValueAtTime(200, ctx.currentTime);
-        alienShootOsc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.12);
-        alienShootGain.gain.setValueAtTime(0.25, ctx.currentTime);
-        alienShootGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
-
-        alienShootOsc.start(ctx.currentTime);
-        alienShootOsc.stop(ctx.currentTime + 0.12);
-        break;
-      default:
-        break;
+  const updateMarchSpeed = () => {
+    if (soundsRef.current.marchBeat) {
+      const aliveCount = gameObjectsRef.current.invaders.filter(i => i.alive).length;
+      // Increase playback rate as aliens die (1.0 = normal, 2.0 = double speed)
+      const playbackRate = 1.0 + ((55 - aliveCount) / 55) * 1.5; // Max 2.5x speed
+      soundsRef.current.marchBeat.playbackRate = playbackRate;
     }
   };
 
@@ -442,7 +417,7 @@ const SpaceInvadersTournament = () => {
           }
         });
       }
-      playSound('march');
+      //playSound('march');
     }
     const now = Date.now();
     // CHANGED: UFO now appears randomly between 30 and 60 seconds
@@ -456,8 +431,16 @@ const SpaceInvadersTournament = () => {
         points: Math.floor(Math.random() * 3) * 50 + 50 // 50, 100, or 150 points
       };
       game.lastBonusSpawn = now;
-      playSound('bonus');
+      //playSound('bonus-alien.wav');
+
+      if (soundsRef.current.bonusAlien) {
+        bonusAlienSoundRef.current = soundsRef.current.bonusAlien.cloneNode();
+        bonusAlienSoundRef.current.volume = 0.2;
+        bonusAlienSoundRef.current.loop = true;
+        bonusAlienSoundRef.current.play().catch(e => console.log('Bonus sound failed:', e));
+      }
     }
+
 
     // Update bonus alien position
     if (game.bonusAlien) {
@@ -465,8 +448,11 @@ const SpaceInvadersTournament = () => {
       // Remove if off screen
       if (game.bonusAlien.x > canvas.width + 100) {
         game.bonusAlien = null;
-      } else if (game.animationFrame % 25 === 0) {
-        playSound('bonus');
+        if (bonusAlienSoundRef.current) {
+          bonusAlienSoundRef.current.pause();
+          bonusAlienSoundRef.current.currentTime = 0;
+          bonusAlienSoundRef.current = null;
+        }
       }
     }
 
@@ -513,6 +499,19 @@ const SpaceInvadersTournament = () => {
             const points = game.bonusAlien.points;
             scoreRef.current += points; // Using ref for real-time update
             setScore(s => s + points);
+
+            setScorePopup({
+              x: game.bonusAlien.x + 30,
+              y: game.bonusAlien.y,
+              points
+            });
+            setTimeout(() => setScorePopup(null), 2000);
+
+            if (bonusAlienSoundRef.current) {
+              bonusAlienSoundRef.current.pause();
+              bonusAlienSoundRef.current.currentTime = 0;
+              bonusAlienSoundRef.current = null;
+            }
 
             // Kill the UFO and the bullet
             game.bonusAlien = null;
@@ -690,6 +689,15 @@ const SpaceInvadersTournament = () => {
       ctx.fillRect(game.bonusAlien.x + 45, game.bonusAlien.y + 20, 4, 4);
     }
 
+    // Draw score popup for bonus alien
+    if (scorePopup) {
+      ctx.fillStyle = '#ffff00';
+      ctx.font = 'bold 48px "Press Start 2P", monospace';
+      ctx.fillText(`+${scorePopup.points}`, scorePopup.x, scorePopup.y);
+    }
+
+
+
     // Draw barriers
     ctx.fillStyle = '#00ff00';
     game.barriers.forEach(barrier => {
@@ -751,6 +759,8 @@ const SpaceInvadersTournament = () => {
       ctx.fillRect(canvas.width - 250 + i * 60, 20, 50, 30);
     }
   };
+
+
 
   const fetchLeaderboard = async () => {
     try {
@@ -832,7 +842,7 @@ const SpaceInvadersTournament = () => {
     gameObjectsRef.current.barriers = [];
     gameObjectsRef.current.lastBonusSpawn = Date.now();
     setGameState('playing');
-    
+
     // Resume audio context on game start
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
@@ -1025,6 +1035,8 @@ const SpaceInvadersTournament = () => {
                   <span className="text-red-500" style={{ textShadow: '0 0 20px #f00, 0 0 40px #f00' }}>= ??? PTS</span>
                 </div>
               </div>
+
+
 
               <button
                 onClick={() => setGameState('menu')}
