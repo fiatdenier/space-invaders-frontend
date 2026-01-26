@@ -53,8 +53,10 @@ const SpaceInvadersTournament = () => {
     lastBonusSpawn: Date.now(),
     animationFrame: 0,
     invaderMoveCount: 0, // Track movement steps for animation
+    hasMovedDown: false,
     keys: {},
     mobileInput: { left: false, right: false, shoot: false }
+    
 
   });
 
@@ -361,7 +363,7 @@ const SpaceInvadersTournament = () => {
         y: player.y,
         width: 6,
         height: 24,
-        speed: 14,
+        speed: 5,
         fromPlayer: true
       });
       setGameData(prev => ({ ...prev, shotsFired: prev.shotsFired + 1 }));
@@ -421,6 +423,7 @@ const SpaceInvadersTournament = () => {
 
       if (hitEdge) {
         game.invaderDirection *= -1;
+        game.hasMovedDown = true;
         aliveInvaders.forEach(inv => {
           inv.y += 35;
           if (inv.y > canvas.height - 180) {
@@ -432,12 +435,12 @@ const SpaceInvadersTournament = () => {
     }
     const now = Date.now();
     // CHANGED: UFO now appears randomly between 30 and 60 seconds
-    if (!game.bonusAlien && now - game.lastBonusSpawn > (30000 + Math.random() * 30000)) {
+    if (!game.bonusAlien && game.hasMovedDown && now - game.lastBonusSpawn > (30000 + Math.random() * 30000)) {
       game.bonusAlien = {
         x: -100,
         y: 100, // Changed from 40 to 100 to prevent top cutoff
-        width: 60,
-        height: 30,
+        width: 120,
+        height: 60,
         speed: 2,
         points: Math.floor(Math.random() * 3) * 50 + 50 // 50, 100, or 150 points
       };
@@ -475,7 +478,7 @@ const SpaceInvadersTournament = () => {
           y: shooter.y + shooter.height,
           width: 6,
           height: 24,
-          speed: 7,
+          speed: 3,
           fromPlayer: false
         });
         game.lastEnemyShot = now;
@@ -519,8 +522,8 @@ const SpaceInvadersTournament = () => {
           setScore(s => s + points);
 
           setScorePopup({
-            x: game.bonusAlien.x + 30,
-            y: game.bonusAlien.y,
+            x: game.bonusAlien.x + 10,
+            y: game.bonusAlien.y +30,
             points
           });
           setTimeout(() => setScorePopup(null), 2000);
@@ -696,31 +699,23 @@ const SpaceInvadersTournament = () => {
     if (game.bonusAlien) {
       ctx.fillStyle = '#ff0000';
       // Top dome
-      ctx.fillRect(game.bonusAlien.x + 10, game.bonusAlien.y, 40, 8);
+      ctx.fillRect(game.bonusAlien.x + 10, game.bonusAlien.y, 80, 16);
       // Middle section with windows
-      ctx.fillRect(game.bonusAlien.x + 5, game.bonusAlien.y + 8, 50, 8);
+      ctx.fillRect(game.bonusAlien.x + 5, game.bonusAlien.y + 8, 100, 16);
       // Windows (white)
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(game.bonusAlien.x + 10, game.bonusAlien.y + 10, 6, 4);
-      ctx.fillRect(game.bonusAlien.x + 22, game.bonusAlien.y + 10, 6, 4);
-      ctx.fillRect(game.bonusAlien.x + 34, game.bonusAlien.y + 10, 6, 4);
+      ctx.fillRect(game.bonusAlien.x + 10, game.bonusAlien.y + 10, 12, 8);
+      ctx.fillRect(game.bonusAlien.x + 22, game.bonusAlien.y + 10, 12, 8);
+      ctx.fillRect(game.bonusAlien.x + 34, game.bonusAlien.y + 10, 12, 8);
       // Bottom saucer (red again)
       ctx.fillStyle = '#ff0000';
-      ctx.fillRect(game.bonusAlien.x, game.bonusAlien.y + 16, 60, 4);
+      ctx.fillRect(game.bonusAlien.x, game.bonusAlien.y + 16, 120, 8);
       ctx.fillRect(game.bonusAlien.x + 5, game.bonusAlien.y + 20, 4, 4);
       ctx.fillRect(game.bonusAlien.x + 15, game.bonusAlien.y + 20, 4, 4);
       ctx.fillRect(game.bonusAlien.x + 25, game.bonusAlien.y + 20, 4, 4);
       ctx.fillRect(game.bonusAlien.x + 35, game.bonusAlien.y + 20, 4, 4);
       ctx.fillRect(game.bonusAlien.x + 45, game.bonusAlien.y + 20, 4, 4);
     }
-
-    // Draw score popup for bonus alien
-    if (scorePopup) {
-      ctx.fillStyle = '#ffff00';
-      ctx.font = 'bold 48px "Press Start 2P", monospace';
-      ctx.fillText(`+${scorePopup.points}`, scorePopup.x, scorePopup.y);
-    }
-
 
 
     // Draw barriers
@@ -777,6 +772,17 @@ const SpaceInvadersTournament = () => {
     ctx.font = 'bold 36px "Press Start 2P", monospace';
     ctx.fillText(`SCORE ${scoreRef.current}`, 30, 50);
     ctx.fillText(`LEVEL ${level}`, canvas.width / 2 - 120, 50);
+
+    if (scorePopup) {
+      // Add shadow/glow effect
+      ctx.shadowColor = '#ffff00';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = '#ffff00';
+      ctx.font = 'bold 60px "Press Start 2P", monospace';
+      ctx.fillText(`+${scorePopup.points}`, scorePopup.x, scorePopup.y);
+      // Reset shadow
+      ctx.shadowBlur = 0;
+    }
 
     // Lives
     ctx.fillStyle = '#00ff00';
@@ -853,6 +859,7 @@ const SpaceInvadersTournament = () => {
     if (gameLoopRef.current) {
       cancelAnimationFrame(gameLoopRef.current);
     }
+    stopMarchBeat();
     setGameState('gameover');
   };
 
@@ -866,6 +873,7 @@ const SpaceInvadersTournament = () => {
     gameObjectsRef.current.bullets = [];
     gameObjectsRef.current.barriers = [];
     gameObjectsRef.current.lastBonusSpawn = Date.now();
+    gameObjectsRef.current.hasMovedDown = false;
     setGameState('playing');
 
     // Resume audio context on game start
