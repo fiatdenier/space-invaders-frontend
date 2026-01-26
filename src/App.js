@@ -52,6 +52,7 @@ const SpaceInvadersTournament = () => {
     lastEnemyShot: 0,
     lastBonusSpawn: Date.now(),
     animationFrame: 0,
+    invaderMoveCount: 0, // Track movement steps for animation
     keys: {},
     mobileInput: { left: false, right: false, shoot: false }
 
@@ -407,12 +408,16 @@ const SpaceInvadersTournament = () => {
 
     const aliveInvaders = game.invaders.filter(inv => inv.alive);
 
-    if (game.animationFrame % 180 === 0 && aliveInvaders.length > 0) {
+    // Move aliens every 60 frames (1 second at 60 FPS)
+    if (game.animationFrame % 60 === 0 && aliveInvaders.length > 0) {
       let hitEdge = false;
       aliveInvaders.forEach(inv => {
         inv.x += game.invaderDirection * game.invaderSpeed * 18;
         if (inv.x <= 30 || inv.x >= canvas.width - 100) hitEdge = true;
       });
+
+      // Increment move counter for animation
+      game.invaderMoveCount++;
 
       if (hitEdge) {
         game.invaderDirection *= -1;
@@ -430,7 +435,7 @@ const SpaceInvadersTournament = () => {
     if (!game.bonusAlien && now - game.lastBonusSpawn > (30000 + Math.random() * 30000)) {
       game.bonusAlien = {
         x: -100,
-        y: 40,
+        y: 100, // Changed from 40 to 100 to prevent top cutoff
         width: 60,
         height: 30,
         speed: 2,
@@ -478,80 +483,93 @@ const SpaceInvadersTournament = () => {
       }
     }
 
-    game.bullets.forEach((bullet, bIndex) => {
+    // Check bullet collisions - mark bullets for removal instead of splicing during iteration
+    game.bullets.forEach((bullet) => {
+      if (bullet.toRemove) return; // Skip already marked bullets
+
+      // Check collision with invaders
       game.invaders.forEach((invader) => {
+        if (bullet.toRemove) return; // Skip if already hit something
+        
         if (invader.alive && bullet.fromPlayer &&
           bullet.x < invader.x + invader.width &&
           bullet.x + bullet.width > invader.x &&
           bullet.y < invader.y + invader.height &&
           bullet.y + bullet.height > invader.y) {
           invader.alive = false;
-          game.bullets.splice(bIndex, 1);
+          bullet.toRemove = true;
           const points = invader.points;
           scoreRef.current += points; // Update ref immediately
           setScore(s => s + points);
-          console.log('Hit! New score:', score + invader.points);
           setGameData(prev => ({ ...prev, hits: prev.hits + 1 }));
           playSound('hit');
         }
+      });
 
-        if (bullet.fromPlayer && game.bonusAlien) {
-          if (bullet.x < game.bonusAlien.x + game.bonusAlien.width &&
-            bullet.x + bullet.width > game.bonusAlien.x &&
-            bullet.y < game.bonusAlien.y + game.bonusAlien.height &&
-            bullet.y + bullet.height > game.bonusAlien.y) {
+      // Check collision with bonus alien
+      if (!bullet.toRemove && bullet.fromPlayer && game.bonusAlien) {
+        if (bullet.x < game.bonusAlien.x + game.bonusAlien.width &&
+          bullet.x + bullet.width > game.bonusAlien.x &&
+          bullet.y < game.bonusAlien.y + game.bonusAlien.height &&
+          bullet.y + bullet.height > game.bonusAlien.y) {
 
-            // Add points and play hit sound
-            const points = game.bonusAlien.points;
-            scoreRef.current += points; // Using ref for real-time update
-            setScore(s => s + points);
+          // Add points and show popup
+          const points = game.bonusAlien.points;
+          scoreRef.current += points;
+          setScore(s => s + points);
 
-            setScorePopup({
-              x: game.bonusAlien.x + 30,
-              y: game.bonusAlien.y,
-              points
-            });
-            setTimeout(() => setScorePopup(null), 2000);
+          setScorePopup({
+            x: game.bonusAlien.x + 30,
+            y: game.bonusAlien.y,
+            points
+          });
+          setTimeout(() => setScorePopup(null), 2000);
 
-            if (bonusAlienSoundRef.current) {
-              bonusAlienSoundRef.current.pause();
-              bonusAlienSoundRef.current.currentTime = 0;
-              bonusAlienSoundRef.current = null;
-            }
-
-            // Kill the UFO and the bullet
-            game.bonusAlien = null;
-            game.bullets.splice(bIndex, 1);
-
-            playSound('hit');
-            return; // Prevent further checks for this deleted bullet
+          if (bonusAlienSoundRef.current) {
+            bonusAlienSoundRef.current.pause();
+            bonusAlienSoundRef.current.currentTime = 0;
+            bonusAlienSoundRef.current = null;
           }
-        }
-      });
 
-      game.barriers.forEach((barrier) => {
-        if (barrier.alive &&
-          bullet.x < barrier.x + barrier.width &&
-          bullet.x + bullet.width > barrier.x &&
-          bullet.y < barrier.y + barrier.height &&
-          bullet.y + bullet.height > barrier.y) {
-          barrier.alive = false;
-          game.bullets.splice(bIndex, 1);
+          // Kill the UFO and mark bullet for removal
+          game.bonusAlien = null;
+          bullet.toRemove = true;
+          playSound('hit');
         }
-      });
+      }
 
-      if (!bullet.fromPlayer && !game.player.exploding) {
+      // Check collision with barriers
+      if (!bullet.toRemove) {
+        game.barriers.forEach((barrier) => {
+          if (bullet.toRemove) return;
+          
+          if (barrier.alive &&
+            bullet.x < barrier.x + barrier.width &&
+            bullet.x + bullet.width > barrier.x &&
+            bullet.y < barrier.y + barrier.height &&
+            bullet.y + bullet.height > barrier.y) {
+            barrier.alive = false;
+            bullet.toRemove = true;
+          }
+        });
+      }
+
+      // Check collision with player
+      if (!bullet.toRemove && !bullet.fromPlayer && !game.player.exploding) {
         if (bullet.x < game.player.x + game.player.width &&
           bullet.x + bullet.width > game.player.x &&
           bullet.y < game.player.y + game.player.height &&
           bullet.y + bullet.height > game.player.y) {
-          game.bullets.splice(bIndex, 1);
+          bullet.toRemove = true;
           game.player.exploding = true;
           game.player.explosionFrame = 0;
           playSound('explode');
         }
       }
     });
+
+    // Remove marked bullets after all collision checks
+    game.bullets = game.bullets.filter(bullet => !bullet.toRemove);
 
     if (aliveInvaders.length === 0) {
       setScore(s => s + 1000);
@@ -665,8 +683,9 @@ const SpaceInvadersTournament = () => {
       }
     });
 
-    // Draw invaders with animation
-    const frame = Math.floor(game.animationFrame / 15);
+    // Draw invaders with animation tied to movement
+    // Toggle between frame 0 and 1 each time aliens move
+    const frame = game.invaderMoveCount % 2;
     game.invaders.forEach(invader => {
       if (invader.alive) {
         drawAlien(ctx, invader.x, invader.y, invader.type, frame);
